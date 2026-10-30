@@ -6,24 +6,38 @@
 - **Unverified:** believed or supplied to apply, but must be confirmed against an official 2026 hackathon source.
 - **Confirmed:** verified against an official source with a link and access date.
 
-No hackathon rule is currently marked confirmed because no official rules, submission page, or eligibility document has been inspected during Brick 1.
+## Official references
+
+Inspected October 29, 2026:
+
+- [Build Your First AI App overview and submission requirements](https://build-your-first-ai-app.devpost.com/)
+- [Build Your First AI App official rules](https://build-your-first-ai-app.devpost.com/rules)
+
+The event requirements below are confirmed from those pages. A published event rule does not by itself confirm that a particular participant meets the rule or has completed registration.
 
 ## Working requirements
 
 | Item | Current status | Evidence / action needed |
 | --- | --- | --- |
-| Event name: “Build Your First AI App 2026” | Unverified | Confirm the official event name and organizer |
-| Official submission deadline: Nov 27, 2026 at 3:00 PM Mountain Time | Unverified | Confirm date, year, time zone, daylight/standard-time wording, and submission portal behavior |
+| Event name: “Build Your First AI App 2026” | Confirmed | Official Devpost overview, accessed Oct 29, 2026 |
+| Student eligibility applies | Confirmed | Rules require eligible students; the overview also lists “Students only” |
+| Personal participant eligibility | Unverified | Confirm student status plus applicable age, geography, and Devpost platform requirements |
+| Completed Devpost registration | Unverified | Participant must confirm they joined the event with the intended Devpost account |
+| Official submission deadline: Nov 27, 2026 at 5:00 PM EST | Confirmed | Deadline displayed on the official overview and rules pages |
 | Internal submission target: Nov 25, 2026 | Project requirement | Team planning target; no external confirmation needed |
-| ScenarioLab must be an AI-powered app | Project requirement; official relevance unverified | Map product AI features to official judging/eligibility language |
-| Required deliverables | Unverified | Check whether source code, deployed URL, video, slides, screenshots, write-up, or model disclosure are required |
-| Team eligibility and team-size limits | Unverified | Confirm participant, age, geography, affiliation, and team-size rules |
+| Working prototype | Confirmed | Required deliverable: functional application, prototype, or demonstrable proof of concept |
+| AI implementation explanation | Confirmed | Must identify the model, API, library, or tool and explain its contribution |
+| Accessible source code | Confirmed | Must provide a GitHub repository or another accessible source-code link, where applicable |
+| README | Confirmed | Must explain setup, features, technologies, and how to try the project |
+| Demo | Confirmed | A short demonstration video or screenshots must show the main features |
+| Participant contributions | Confirmed | Must describe what was built, what was learned, and any AI-assisted development tools used |
+| AI coding assistants permitted with disclosure | Confirmed | Rules permit them with credit, tool disclosure, and identification of the participant's own contribution |
+| Team-size limits | Unverified | Rules permit teams subject to configured team requirements; confirm the configured limit |
 | Build-period / pre-existing-code restrictions | Unverified | Confirm what may predate the event and what must be created during it |
-| Required or prohibited technologies | Unverified | Confirm sponsor APIs, model requirements, open-source restrictions, and hosting constraints |
-| Repository visibility and licensing | Unverified | Confirm whether the repo must be public and whether a license is required |
+| Repository visibility and licensing | Unverified | Source must be accessible; confirm whether public visibility and a specific license are required |
 | AI/content/data policy | Unverified | Confirm rules for generated content, third-party documents, URLs, privacy, and attribution |
-| Judging criteria and category | Unverified | Record criteria, weighting, prize category, and tie-break rules |
-| Demo availability requirements | Unverified | Confirm whether judges require credentials, uptime window, or a no-login path |
+| Judging criteria | Confirmed | Creativity 25%, implementation 30%, usefulness 25%, presentation/documentation 20% |
+| Demo availability details | Unverified | Confirm video duration, screenshot limits, credentials, uptime window, and no-login expectations |
 
 ## ScenarioLab compliance posture
 
@@ -43,8 +57,7 @@ These are product design choices, not claims that a particular hackathon rule re
 
 ## Evidence to collect during development
 
-- Official rules and submission URLs, captured with access dates
-- Eligibility and team roster confirmation
+- Personal eligibility, completed Devpost registration, and team roster confirmation
 - Required account, API, or sponsor-technology evidence
 - Architecture diagram and explanation of the deterministic/AI boundary
 - Automated test results for validation, determinism, and fallback behavior
@@ -59,20 +72,19 @@ These are product design choices, not claims that a particular hackathon rule re
 
 Before implementation choices are justified as “hackathon compliant”:
 
-1. Locate the organizer's official 2026 rules and submission page.
-2. Record each source URL and the date accessed.
+1. Use the official 2026 Devpost overview and rules linked above.
+2. Record the access date for any new or changed requirement.
 3. Quote or accurately summarize the relevant requirement without relying on prior-year rules.
 4. Replace `Unverified` with `Confirmed` only when the source directly supports the claim.
 5. Add an owner and due date for any unresolved requirement that could block submission.
-6. Recheck the deadline and portal at the November 25 internal submission gate.
+6. Recheck the deadline, deliverables, and portal at the November 25 internal submission gate.
 
 ## Open compliance questions
 
-1. What is the official rules URL and submission portal?
-2. Is 3:00 PM “Mountain” specified as MST, MDT, or a named local time zone? On November 27, Denver observes standard time, but the official wording controls.
-3. Which artifacts and maximum video length/file sizes are required?
-4. Must ScenarioLab be deployed publicly, and must judges be able to access it without credentials?
-5. Are there required AI providers, sponsor tools, or disclosure statements?
+1. Does the intended participant personally meet the student, age, geographic, and platform eligibility requirements?
+2. Has the intended participant completed Devpost registration and joined the hackathon?
+3. What team-size limit is configured for the event?
+4. What video duration, screenshot count, file sizes, and submission-field limits apply?
+5. Must ScenarioLab be deployed publicly, and must judges be able to access it without credentials?
 6. Are prompt-to-scenario and document/URL ingestion permitted with third-party material?
-7. Are there restrictions on pre-existing templates, libraries, or AI-assisted development?
-8. What judging category and criteria best fit ScenarioLab?
+7. Are there build-period restrictions on pre-existing templates or libraries beyond disclosed attribution?

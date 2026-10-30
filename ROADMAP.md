@@ -2,7 +2,13 @@
 
 This schedule runs daily from October 29 through November 27, 2026. It targets a reviewable MVP before the November 25 internal submission, leaving November 26 for contingency and November 27 for final submission only.
 
-Dates and submission requirements are planning inputs supplied to the project and remain externally unverified; see `docs/hackathon-compliance.md`.
+The official Devpost deadline is confirmed as November 27, 2026 at 5:00 PM EST. Personal eligibility and completed Devpost registration remain unconfirmed; see `docs/hackathon-compliance.md`.
+
+## Verified progress
+
+- **Brick 1 — Complete:** repository policy, product architecture, scenario contract, roadmap, and compliance tracker are documented.
+- **Brick 2 — Complete:** React/Vite/Tailwind application shell, FastAPI health service, environment configuration, CORS, dependency locks, frontend tests, backend tests, and production frontend build are verified.
+- **Next:** Brick 3 may begin only after Brick 2 review. No simulation engine or gameplay logic is included yet.
 
 ## Daily milestones
 
@@ -10,7 +16,7 @@ Dates and submission requirements are planning inputs supplied to the project an
 | --- | --- | --- |
 | Oct 29 | **Brick 1:** repository foundation and architecture | Six foundation documents reviewed; contract and trust boundaries documented |
 | Oct 30 | Confirm hackathon rules and lock MVP acceptance criteria | Official-source links recorded; open compliance questions resolved or assigned |
-| Oct 31 | Scaffold web/API workspaces and developer commands | Web and API start locally; formatting and test commands documented |
+| Oct 31 | **Brick 2:** scaffold frontend/API workspaces and developer commands | React build and tests pass; FastAPI health test and live smoke test pass; commands documented |
 | Nov 1 | Implement Pydantic `ScenarioDefinition` models | Minimal and full definitions validate; invalid fixtures fail clearly |
 | Nov 2 | Add semantic scenario validator and JSON Schema export | Cross-reference, bounds, predicate, and effect validation covered by Pytest |
 | Nov 3 | Define Startup Survival v1 scenario data | 12-turn definition validates with initial resources, decisions, events, and criteria |
@@ -37,7 +43,7 @@ Dates and submission requirements are planning inputs supplied to the project an
 | Nov 24 | Stretch spike: PDF/document/URL ingestion | Timeboxed provenance and injection-resistant pipeline prototype or deferral |
 | Nov 25 | **Internal submission:** release candidate and demo freeze | Clean-machine runbook, demo script, compliance checklist, and RC tag candidate ready |
 | Nov 26 | Contingency, rehearsal, and submission packaging | Only release-blocking fixes; backup demo and required assets prepared |
-| Nov 27 | **Official submission by 3:00 PM Mountain (unverified)** | Submit early, capture confirmation, and preserve final artifact references |
+| Nov 27 | **Official submission by 5:00 PM EST (confirmed)** | Submit early, capture confirmation, and preserve final artifact references |
 
 ## Scope gates
 
@@ -57,7 +63,7 @@ Every generated scenario must pass the same structural and semantic validation a
 
 ## Schedule risks
 
-- **Unverified rules:** eligibility, required technologies, submission fields, judging criteria, and exact deadline/time zone may change priorities.
+- **Eligibility:** event-level student eligibility is confirmed, but personal eligibility and completed Devpost registration must be confirmed before submission.
 - **AI latency or access:** use a fake provider during development and keep fallback events on the critical path.
 - **Contract churn:** freeze `ScenarioDefinition` v1 after semantic validation and Startup Survival fixtures pass.
 - **Save compatibility:** store contract and save-schema versions from the first persistence implementation.

@@ -6,7 +6,7 @@ The first scenario is **Startup Survival**: manage a startup over 12 monthly tur
 
 ## Project status
 
-This repository is at **Brick 1: repository foundation and architecture**. This brick contains documentation and repository policy only; no application code or dependencies have been added.
+**Brick 2: frontend and backend scaffolding** is complete. The repository now contains a responsive React application shell, a FastAPI service with `GET /api/health`, and automated connection tests. Gameplay, the simulation engine, persistence, and AI integration intentionally remain out of scope.
 
 ## MVP
 
@@ -42,17 +42,89 @@ See [docs/architecture.md](docs/architecture.md) for the contract and trust boun
 | Persistence | `localStorage` initially |
 | Tests | Pytest, Vitest, Playwright |
 
-## Planned repository shape
+## Prerequisites
 
-The exact workspace layout will be established in a later brick. The expected boundaries are:
+- Node.js 24 and npm 11 (the versions verified for Brick 2)
+- Python 3.12 through 3.14
+- [`uv`](https://docs.astral.sh/uv/) 0.13 or newer for Python environment and dependency management
+
+`uv` can locate or provision a compatible Python runtime without changing the system-wide Python configuration.
+
+## Installation
+
+Install each application's dependencies from the repository root:
+
+```powershell
+cd frontend
+npm install
+
+cd ../backend
+uv sync --dev
+```
+
+Both applications provide an environment template. The checked-in defaults work together locally, so copying them is optional until a value needs to change:
+
+```powershell
+Copy-Item frontend/.env.example frontend/.env
+Copy-Item backend/.env.example backend/.env
+```
+
+Only variables prefixed with `VITE_` are exposed to browser code. Keep backend configuration and secrets out of the frontend environment.
+
+## Run locally
+
+Start the backend in one terminal:
+
+```powershell
+cd backend
+uv run uvicorn scenariolab_api.main:app --reload
+```
+
+The API is available at `http://localhost:8000`; its health endpoint is `http://localhost:8000/api/health`.
+
+Start the frontend in a second terminal:
+
+```powershell
+cd frontend
+npm run dev
+```
+
+Open `http://localhost:5173`. The header reports **API Connected** when the health endpoint returns the expected contract and **API Unavailable** when it cannot be reached.
+
+## Run tests and builds
+
+```powershell
+cd backend
+uv run pytest
+
+cd ../frontend
+npm test
+npm run build
+```
+
+Frontend tests use Vitest and React Testing Library. Backend endpoint tests use Pytest and HTTPX.
+
+## Project structure
 
 ```text
-apps/web/                 React user interface
-apps/api/                 FastAPI transport and orchestration
-packages/                 Shared generated types or schemas, if needed
-scenario_definitions/     Versioned scenario data
-tests/                    Cross-application and end-to-end tests
-docs/                     Architecture and project documentation
+frontend/
+  src/
+    components/           Reusable React UI, including API status
+    lib/                  Browser API client and response validation
+    test/                 Shared Vitest setup
+  .env.example            Public Vite configuration template
+  package.json            Frontend scripts and dependencies
+  vite.config.ts          Vite, Tailwind CSS, and Vitest configuration
+backend/
+  src/scenariolab_api/
+    routes/               FastAPI route modules
+    config.py             Backend-only environment settings
+    main.py               Application factory and entry point
+    schemas.py            Pydantic transport models
+  tests/                  Pytest and HTTPX endpoint tests
+  .env.example            Backend configuration template
+  pyproject.toml           Python project and dependency configuration
+docs/                     Architecture and compliance documentation
 ```
 
 Scenario definitions should remain data, not executable plugins. Engine code must not import or branch on a scenario name.
@@ -71,7 +143,7 @@ Scenario definitions should remain data, not executable plugins. Engine code mus
 - [ROADMAP.md](ROADMAP.md) contains daily milestones from October 29 through November 27, 2026.
 - [docs/hackathon-compliance.md](docs/hackathon-compliance.md) distinguishes project requirements from hackathon rules that still need confirmation against the official source.
 
-The working dates currently supplied to the project are an internal submission target of **November 25, 2026** and an official deadline of **November 27, 2026 at 3:00 PM Mountain Time**. These dates are not yet independently verified.
+The internal submission target is **November 25, 2026**. The official Devpost deadline is **November 27, 2026 at 5:00 PM Eastern Standard Time**. See the compliance tracker for confirmed requirements and remaining personal eligibility checks.
 
 ## Contributing
 

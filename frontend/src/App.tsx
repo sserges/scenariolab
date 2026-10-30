@@ -1,23 +1,5 @@
 import { ApiStatus } from "./components/ApiStatus";
-
-function ArrowIcon() {
-  return (
-    <svg
-      aria-hidden="true"
-      className="h-4 w-4"
-      fill="none"
-      viewBox="0 0 24 24"
-    >
-      <path
-        d="M5 12h14m-5-5 5 5-5 5"
-        stroke="currentColor"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        strokeWidth="2"
-      />
-    </svg>
-  );
-}
+import { ScenarioCatalog } from "./components/ScenarioCatalog";
 
 export function App() {
   return (
@@ -74,65 +56,34 @@ export function App() {
                 Choose your challenge
               </h2>
             </div>
-            <p className="text-sm text-slate-500">1 scenario in development</p>
+            <p className="text-sm text-slate-500">3 official scenarios</p>
           </div>
 
-          <div className="mt-7 grid gap-5 md:grid-cols-2">
-            <article className="group relative overflow-hidden rounded-3xl border border-white/10 bg-gradient-to-br from-slate-900 to-slate-900/60 p-7 shadow-2xl shadow-black/20">
-              <div
-                aria-hidden="true"
-                className="absolute -right-10 -top-10 h-40 w-40 rounded-full bg-blue-500/10 blur-3xl"
-              />
-              <div className="relative">
-                <div className="flex items-center justify-between gap-4">
-                  <span className="rounded-full bg-blue-400/10 px-3 py-1 text-xs font-bold uppercase tracking-wider text-blue-200">
-                    Business
-                  </span>
-                  <span className="text-xs font-semibold text-slate-500">12 months</span>
-                </div>
-                <h3 className="mt-8 text-2xl font-bold text-white">
-                  Startup Survival
+          <ScenarioCatalog />
+
+          <article className="mt-5 rounded-3xl border border-dashed border-white/15 bg-white/[0.025] p-7">
+            <div className="flex flex-col gap-6 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <span className="rounded-full border border-white/10 px-3 py-1 text-xs font-bold uppercase tracking-wider text-slate-500">
+                  Planned feature
+                </span>
+                <h3 className="mt-5 text-xl font-bold text-slate-300">
+                  Create Custom Scenario
                 </h3>
-                <p className="mt-3 max-w-md leading-7 text-slate-400">
-                  Guide an early-stage company through a year of hard tradeoffs.
-                  Protect runway, grow the team, and build something customers
-                  need.
+                <p className="mt-2 max-w-2xl leading-7 text-slate-500">
+                  Turn a prompt, document, or URL into a validated simulation built
+                  on the same ScenarioDefinition contract.
                 </p>
-                <button
-                  className="mt-8 inline-flex cursor-not-allowed items-center gap-2 rounded-xl bg-white/10 px-4 py-3 text-sm font-bold text-slate-300"
-                  disabled
-                  type="button"
-                >
-                  Gameplay coming next
-                  <ArrowIcon />
-                </button>
               </div>
-            </article>
-
-            <article className="rounded-3xl border border-dashed border-white/15 bg-white/[0.025] p-7">
-              <div className="flex h-full min-h-64 flex-col justify-between">
-                <div>
-                  <span className="rounded-full border border-white/10 px-3 py-1 text-xs font-bold uppercase tracking-wider text-slate-500">
-                    Future feature
-                  </span>
-                  <h3 className="mt-8 text-2xl font-bold text-slate-300">
-                    Create Custom Scenario
-                  </h3>
-                  <p className="mt-3 max-w-md leading-7 text-slate-500">
-                    Turn a prompt, document, or URL into a validated simulation
-                    built on the same deterministic engine.
-                  </p>
-                </div>
-                <button
-                  className="mt-8 w-fit cursor-not-allowed rounded-xl border border-white/10 px-4 py-3 text-sm font-bold text-slate-600"
-                  disabled
-                  type="button"
-                >
-                  Coming later
-                </button>
-              </div>
-            </article>
-          </div>
+              <button
+                className="w-fit shrink-0 cursor-not-allowed rounded-xl border border-white/10 px-4 py-3 text-sm font-bold text-slate-600"
+                disabled
+                type="button"
+              >
+                Planned
+              </button>
+            </div>
+          </article>
         </section>
       </main>
 

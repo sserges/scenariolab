@@ -4,6 +4,8 @@
 
 ScenarioLab must run many decision simulations through one engine. Startup Survival is the first content package, not an engine special case. A scenario is declarative, portable, versioned data. Python calculates authoritative outcomes; AI supplies optional content and explanations inside a strict validation boundary.
 
+The official predefined catalog contains Startup Survival, Cybersecurity Crisis, and Space Colony. Catalog presence is not playability: Startup Survival has a complete available definition, while Cybersecurity Crisis and the 50-astronaut Space Colony remain planned until their definitions and tests are complete. The implementation order is Startup Survival MVP first, followed by the two planned scenarios after the generic engine is proven.
+
 The design optimizes for:
 
 - deterministic, replayable numeric transitions;
@@ -45,7 +47,7 @@ The engine has no dependency on FastAPI, React, an LLM SDK, or a specific scenar
 
 - The canonical definition is validated by Pydantic and exported as JSON Schema for tooling and TypeScript type generation.
 - `schema_version` versions the envelope/contract. `version` versions the scenario content. They are independent.
-- Stable IDs use a conservative pattern such as `^[a-z][a-z0-9_]{0,63}$`. Display text is stored separately.
+- Stable IDs use lowercase kebab case with the pattern `^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$`. Display text is stored separately.
 - Unknown fields are rejected in authoritative models so misspellings and model hallucinations do not silently pass.
 - Definitions are immutable once used by a saved run. A content change requires a new scenario version.
 - Definitions contain data only: no source code, scripts, dynamic templates, regular-expression execution, or free-form expressions.
@@ -56,40 +58,45 @@ The following is a normative field outline, not application code:
 
 ```yaml
 schema_version: "1.0"
-scenario_id: startup_survival
+scenario_id: startup-survival
 version: "1.0.0"
 title: Startup Survival
 description: Manage a startup through its first year.
-content_locale: en-US
-tags: [business, startup]
+category: business
+
+metadata:
+  objective: Keep the startup alive for 12 simulated months.
+  author: ScenarioLab
+  content_locale: en-US
+  source: predefined
+  tags: [business, startup]
+  disclaimer: Fictional simulation; not financial advice.
+  source_references: []
 
 turn:
-  duration:
-    value: 1
-    unit: month
-  limit: 12
+  duration: 1
+  unit: month
+  max_turns: 12
 
 metrics: []
 initial_state: {}
-decisions: []
+actions: []
 events: []
-terminal_rules: []
+win_conditions: []
+loss_conditions: []
 
 calculation:
-  parameter_values: {}
-  effect_order: []
-  rounding: {}
-  clamp_after_each_effect: false
-  random_streams: []
+  numeric_mode: strict-integer-v1
+  money_mode: integer-cents
+  bound_violation: reject
+  unsupported_operator: reject
+  missing_reference: reject
+  effect_order: [action-effects, event-effects, outcome-evaluation]
+  random_stream_version: scenario-seed-v1
 
 fallback:
   event_ids: []
   no_event_allowed: true
-
-metadata:
-  author: ScenarioLab
-  created_at: "2026-10-29T00:00:00Z"
-  source_provenance: []
 ```
 
 ### 3.3 Identity and version
@@ -101,14 +108,14 @@ metadata:
 | `version` | SemVer string | Immutable content version |
 | `title` | bounded string | Player-facing name |
 | `description` | bounded string | Player-facing summary |
-| `content_locale` | locale string | Locale for authored text |
-| `tags` | unique stable strings | Optional discovery metadata |
+| `category` | closed enum | `business`, `cybersecurity`, `space`, or `custom` |
+| `metadata` | object | Objective, author, locale, source type, tags, disclaimer, and provenance references |
 
 A run pins both `schema_version` and the pair (`scenario_id`, `version`). Saved runs never resolve “latest.”
 
 ### 3.4 Turn model
 
-`turn.duration` contains a positive numeric `value` and an allowlisted display `unit` such as `day`, `week`, `month`, or `year`. `turn.limit` is a bounded positive integer. Startup Survival uses one month per turn and a limit of 12.
+`turn.duration` is a positive integer and `turn.unit` is an allowlisted value such as `day`, `week`, `month`, or `year`. `turn.max_turns` is a bounded positive integer. Startup Survival uses one month per turn and a limit of 12.
 
 The unit communicates simulated time; it does not schedule wall-clock jobs. The engine advances exactly one turn after an accepted decision and all ordered consequences for that turn complete.
 
@@ -121,16 +128,17 @@ All measurable state uses a `MetricDefinition`:
 | `metric_id` | stable ID | Effect and condition target |
 | `label` / `description` | bounded text | Display content |
 | `kind` | enum | `resource`, `score`, `rate`, `count`, or `index` |
-| `number_type` | enum | `integer` or `decimal` |
-| `unit` | object | Machine unit code, display symbol/name, optional scale |
-| `bounds` | object | Inclusive `min` and `max` |
+| `unit` | enum | Machine unit such as `cents`, `people`, `users`, `percent`, `points`, or `units` |
+| `min_value` / `max_value` | integers | Inclusive hard bounds |
 | `capacity` | optional value/reference | Operational capacity at or below the hard maximum |
 | `initial_value` | number | Canonical starting value |
-| `display` | object | Precision, chart visibility, favorable direction |
+| `critical_threshold` | optional integer | A value that outcome conditions may treat as exhaustion or failure |
+| `format` | object | Display style, integer precision, currency code, and suffix |
+| `favorable_direction` | enum | Whether higher, lower, or neither direction is generally favorable |
 
 `initial_state` maps every declared `metric_id` to its initial value and may contain only declared metrics. For a fixed initial value it should equal `initial_value`; keeping the explicit map makes run initialization and future scenario variants auditable. A later version may remove duplication after implementation experience.
 
-Money should use integer minor units (for example cents) where practical. Other decimals use decimal arithmetic and an explicit rounding policy. Every initial value and capacity must lie inside its metric bounds.
+Contract v1 accepts strict integers only. Money uses integer cents. Resources and money are nonnegative; scores and percentages use inclusive 0–100 bounds. Every initial value, capacity, and critical threshold must lie inside its metric bounds. Booleans, floating-point values, missing metrics, and extra initial-state metrics are rejected.
 
 Capacity and bounds have distinct meanings:
 
@@ -139,14 +147,12 @@ Capacity and bounds have distinct meanings:
 
 ### 3.6 Decisions and allowed effects
 
-A `DecisionDefinition` contains:
+A `ScenarioAction` contains:
 
-- `decision_id`, label, description, and optional category;
-- `availability`, a predicate tree evaluated against the pre-decision state;
-- `usage`, such as `once`, `once_per_turn`, or bounded total uses;
+- `action_id`, title, and description;
+- `preconditions`, evaluated against the pre-action state;
 - `effects`, an ordered list of allowlisted numeric effects;
-- optional bounded presentation metadata; and
-- optional explanation hints that contain no calculations.
+- no executable expressions or calculation callbacks.
 
 Allowed effect operations for contract v1:
 
@@ -158,59 +164,74 @@ Allowed effect operations for contract v1:
 | `set` | Set a metric to a literal or parameter value |
 | `transfer` | Subtract from one metric and add to another with explicit conversion and rounding |
 
-Each effect identifies declared targets, an operation, an operand expressed as either a validated literal or a key in `calculation.parameter_values`, and an optional `when` predicate. No effect may contain executable formulas or refer to undeclared state.
+Each `ActionEffect` identifies a declared metric, a closed operator, a nonnegative integer operand, a bounded description, and—only for `transfer`—a distinct declared destination metric. No effect may contain executable formulas or refer to undeclared state. Brick 3 validates effects but does not execute them.
 
 For v1, derived formulas should be represented as a small, explicitly designed future contract addition rather than smuggled into strings. If Startup Survival requires cross-metric calculations, add a narrowly scoped allowlisted operation with documented operands and tests before scenario content uses it.
 
 ### 3.7 Events and triggers
 
-An `EventDefinition` contains:
+A `ScenarioEvent` contains:
 
 - stable `event_id`, title, narrative setup, and optional tags;
-- `trigger`, a bounded predicate tree;
-- `window`, with optional earliest/latest turn;
+- `trigger`, a bounded `EventTrigger`;
+- earliest and optional latest turn;
 - `weight` and `priority` for deterministic seeded selection;
 - `cooldown_turns` and `max_occurrences`;
 - ordered effects, using the same effect contract as decisions;
 - optional player response choices, each with its own allowed effects; and
 - `fallback_eligible`, identifying curated events safe for provider-failure use.
 
-Trigger predicates use a closed recursive structure:
+Brick 3 trigger and outcome clauses use a deliberately small closed structure:
 
 - leaf: metric comparison (`lt`, `lte`, `eq`, `gte`, `gt`) against a literal or declared parameter;
 - leaf: turn comparison;
 - leaf: history fact such as a declared decision/event occurrence count; or
-- group: bounded `all`, `any`, or `not` children.
+- group: a flat, bounded `all` or `any` collection.
 
-Predicate depth and child count are limited. Strings are never evaluated as expressions. References must resolve during semantic validation.
+Nested predicates and arbitrary negation are not part of contract v1. Strings are never evaluated as expressions. Metric and action references must resolve during semantic validation.
 
 If several events are eligible, selection uses the scenario's declared priority, weight, maximum-per-turn rule, and named seeded random stream. The engine records the eligible set and chosen event so the run can be reproduced.
 
 ### 3.8 Win, loss, and ending criteria
 
-`terminal_rules` is an ordered list of `TerminalRule` objects:
+`win_conditions` and `loss_conditions` are immutable collections of `OutcomeCondition` objects:
 
 - `rule_id`;
-- `outcome`: `win`, `loss`, or an explicitly supported ending category;
-- `priority` for simultaneous matches;
-- `when`, using the same predicate contract;
+- collection membership defines whether the result is a win or loss;
+- `priority` resolves simultaneous matches, with higher values taking precedence;
+- `conditions`, using the same closed predicate contract;
 - player-facing title and bounded summary; and
 - optional report guidance that cannot change the result.
 
-The scenario must define behavior at the turn limit, either with a matching terminal rule or an explicit default ending. Terminal priority and tie-breaking are deterministic. Once terminal, the engine rejects further decisions.
+The scenario must define behavior at the turn limit. Startup Survival has a higher-priority success condition and a low-priority turn-limit failure, so every run has a declared ending. Once an engine marks a run terminal, it will reject further decisions.
 
 ### 3.9 Deterministic calculation parameters
 
-`calculation` makes hidden numeric assumptions explicit:
+`calculation` makes hidden numeric assumptions explicit without implementing an engine:
 
-- `parameter_values`: named, typed constants used by effects;
-- `effect_order`: the phase order, for example decision effects, automatic rules, event effects, clamping, turn advance, terminal checks;
-- `rounding`: mode and precision per unit or metric;
-- `clamp_after_each_effect`: whether bounds apply after each effect or at the declared clamp phase;
-- `random_streams`: stable stream names and selection algorithms; and
-- optional `engine_compatibility`: supported engine contract range.
+- `numeric_mode` is strict integers;
+- `money_mode` is integer cents;
+- invalid bounds, unsupported operators, and missing references use a reject policy;
+- `effect_order` declares action effects, event effects, then outcome evaluation; and
+- `random_stream_version` pins deterministic seed metadata.
 
-The engine owns the algorithms. A definition chooses only allowlisted algorithm identifiers and supplies bounded parameters. A run records its seed, engine version, scenario identity/version, accepted actions, generated-event snapshot or ID, and outcomes.
+The future engine owns algorithms and turn advancement. The definition chooses only allowlisted policy identifiers. Brick 3 stores these parameters and a seed but performs no calculations or random selection.
+
+### 3.10 Catalog metadata versus playable definitions
+
+`ScenarioCatalogEntry` is discovery metadata: ID, title, description, category, objective, availability, and planned key metrics. The catalog contains exactly three official entries:
+
+- `startup-survival` — `available`;
+- `cybersecurity-crisis` — `planned`; and
+- `space-colony` — `planned`, with an intended initial population of 50 astronauts.
+
+Catalog entries do not contain actions, events, or authoritative initial state. Only available entries may resolve to a `ScenarioDefinition`. `GET /api/scenarios/{scenario_id}` returns HTTP 409 with `scenario_not_available` for planned entries and HTTP 404 with `scenario_not_found` for unknown IDs.
+
+### 3.11 Initial game state
+
+`initialize_game_state(definition, seed=...)` creates a new immutable `GameState` with the pinned scenario ID/version, current turn 1, maximum turns, a copied metric-value mapping, `not-started` status, empty decision history, and `scenario-seed-v1` metadata. Initialization does not apply an action, event, cash flow, or turn transition. The copied mapping prevents future state snapshots from mutating the source definition.
+
+`DecisionRecord` is defined for future history snapshots but remains unused until an engine accepts actions.
 
 ## 4. Validation pipeline
 
@@ -226,9 +247,9 @@ Validation is identical in principle for curated and AI-generated definitions, w
 
 Validation returns machine-readable issue codes and paths. It must never partially accept a definition or mutate a run.
 
-## 5. Authoritative turn lifecycle
+## 5. Planned authoritative turn lifecycle
 
-For each decision request, the application layer supplies the current run revision and idempotency key. The engine performs one atomic transition:
+Brick 3 does not implement this lifecycle. When the engine is added, each decision request will supply the current run revision and idempotency key and perform one atomic transition:
 
 1. Verify run is active, revision matches, and decision exists.
 2. Evaluate availability and usage limits against pre-decision state.
@@ -246,7 +267,19 @@ The application persists the transition atomically. Repeated idempotency keys re
 
 ### Candidate scenario definitions
 
-The LLM receives a constrained schema and may return candidate JSON. The candidate goes through the full validation pipeline. Imported PDF, document, and URL content is delimited as untrusted source material; instructions found inside it are not followed. Provenance stores source references and extraction metadata.
+Predefined and generated scenarios use the identical `ScenarioDefinition` schema. The future generation flow is:
+
+```text
+User prompt
+  -> AI-generated structured JSON
+  -> Pydantic schema validation
+  -> cross-reference validation
+  -> semantic and safety validation
+  -> accepted immutable ScenarioDefinition
+  -> simulation engine
+```
+
+The LLM receives a constrained schema and may return candidate JSON only. The candidate goes through the full validation pipeline; model output is never executed. Imported PDF, document, and URL content is delimited as untrusted source material, and instructions found inside it are not followed. Provenance stores source references and extraction metadata. Brick 3 documents this boundary but implements no model provider, upload, extraction, or URL fetching.
 
 ### Candidate events
 
@@ -287,10 +320,12 @@ Do not persist provider credentials, raw hidden prompts, or sensitive imported d
 - **UI tests:** server-state rendering, history, chart accessibility, save recovery, restart, and terminal report.
 - **End-to-end tests:** 12 turns with a fake AI provider and with forced provider failure.
 
-## 9. Decisions deferred beyond Brick 1
+## 9. Decisions deferred beyond Brick 3
 
-- Exact monorepo/workspace tooling and generated-type workflow
-- Final Startup Survival metric list and balance values
+- Engine behavior for applying effects, bounds, event selection, turn advancement, and outcome priority
+- Balance validation for the illustrative Startup Survival values
+- Complete Cybersecurity Crisis and Space Colony definitions
+- Generated TypeScript types versus the current small hand-validated API view models
 - Whether generated event content is persisted in full or by digest plus snapshot
 - The concrete LLM provider interface and initial provider
 - Hosting, authentication, server-side persistence, and observability

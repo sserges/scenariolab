@@ -2,11 +2,21 @@
 
 ScenarioLab is an AI-powered decision simulation platform. Players make bounded decisions, a deterministic simulation engine calculates their numeric consequences, and AI adds validated events and explanations without becoming the source of truth.
 
-The first scenario is **Startup Survival**: manage a startup over 12 monthly turns, balance resources and operating metrics, respond to events, and receive an ending report. The same engine is intended to support future predefined and generated scenarios, including document- or URL-grounded scenarios and concepts such as a 50-astronaut Mars colony.
+The first playable definition is **Startup Survival**: manage a startup over 12 monthly turns, balance resources and operating metrics, respond to events, and receive an ending report. The official catalog also includes **Cybersecurity Crisis** and **Space Colony**, which remain clearly marked as planned until their complete definitions and tests exist.
 
 ## Project status
 
-**Brick 2: frontend and backend scaffolding** is complete. The repository now contains a responsive React application shell, a FastAPI service with `GET /api/health`, and automated connection tests. Gameplay, the simulation engine, persistence, and AI integration intentionally remain out of scope.
+**Brick 3: scenario definitions, game state, and predefined scenario catalog** is complete. The repository now contains a validated, immutable Pydantic v2 domain contract, the complete declarative Startup Survival definition, a three-scenario catalog, initial game-state construction, catalog/detail API endpoints, and a catalog-driven React selector. Gameplay, action execution, monthly calculations, persistence, and AI integration intentionally remain out of scope.
+
+## Official predefined scenarios
+
+| Scenario | Objective | Status |
+| --- | --- | --- |
+| Startup Survival | Keep a startup alive for 12 simulated months | Available definition; MVP gameplay is next |
+| Cybersecurity Crisis | Respond to a company security incident | Planned |
+| Space Colony | Keep a Mars colony of 50 astronauts operational | Planned |
+
+Catalog metadata makes all three concepts discoverable. Only an `available` entry may be resolved to a full `ScenarioDefinition`; the API returns HTTP 409 for planned entries rather than presenting incomplete content as playable.
 
 ## MVP
 
@@ -20,15 +30,18 @@ The first scenario is **Startup Survival**: manage a startup over 12 monthly tur
 - Win/loss evaluation and an ending report
 - Built-in fallback events when the configured AI provider is unavailable
 
+Implementation order is Startup Survival first, then Cybersecurity Crisis and Space Colony after the reusable engine and MVP loop are proven. Prompt, document, and URL scenario generation remain stretch work after the predefined MVP is stable.
+
 ## Architecture at a glance
 
 ScenarioLab separates authored or AI-generated content from calculation:
 
 1. A versioned `ScenarioDefinition` describes a scenario as validated data.
-2. The React client submits a selected decision and displays returned state; it does not authoritatively calculate outcomes.
-3. The Python engine validates the action, applies only declared effects using deterministic parameters, enforces bounds and capacities, advances the turn, evaluates triggers and terminal criteria, and returns an outcome record.
-4. The AI integration may propose scenario definitions, events, and explanations, but its output must pass strict schemas and semantic validation. AI-generated code is never executed.
-5. If AI generation fails, deterministic or seeded fallback events keep the simulation playable.
+2. Separate `ScenarioCatalogEntry` records advertise available and planned scenarios without exposing incomplete definitions.
+3. An initial immutable `GameState` copies metric values from a definition without evaluating a decision or turn.
+4. The React client submits a selected decision and displays returned state; it does not authoritatively calculate outcomes.
+5. The future Python engine will validate actions, apply only declared effects using deterministic parameters, enforce bounds and capacities, advance turns, evaluate triggers and terminal criteria, and return outcome records.
+6. Future AI integrations may propose definitions, events, and explanations, but output must pass the same schema and semantic validation. AI-generated code is never executed.
 
 See [docs/architecture.md](docs/architecture.md) for the contract and trust boundaries.
 
@@ -80,7 +93,15 @@ cd backend
 uv run uvicorn scenariolab_api.main:app --reload
 ```
 
-The API is available at `http://localhost:8000`; its health endpoint is `http://localhost:8000/api/health`.
+The API is available at `http://localhost:8000`.
+
+| Endpoint | Purpose |
+| --- | --- |
+| `GET /api/health` | Service availability |
+| `GET /api/scenarios` | Metadata for all three official scenarios |
+| `GET /api/scenarios/{scenario_id}` | Validated definition for an available scenario |
+
+Planned scenario details return HTTP 409 with `scenario_not_available`; unknown IDs return HTTP 404 with `scenario_not_found`.
 
 Start the frontend in a second terminal:
 
@@ -117,7 +138,9 @@ frontend/
   vite.config.ts          Vite, Tailwind CSS, and Vitest configuration
 backend/
   src/scenariolab_api/
+    domain/               Immutable Pydantic v2 contracts and game-state initialization
     routes/               FastAPI route modules
+    scenarios/            Curated definitions and catalog metadata
     config.py             Backend-only environment settings
     main.py               Application factory and entry point
     schemas.py            Pydantic transport models
@@ -128,6 +151,38 @@ docs/                     Architecture and compliance documentation
 ```
 
 Scenario definitions should remain data, not executable plugins. Engine code must not import or branch on a scenario name.
+
+## Scenario contract and numeric conventions
+
+`ScenarioDefinition` contains identity and schema versions, metadata, bounded metric definitions, an explicit initial-state map, turn configuration, declarative actions and effects, triggered events, prioritized win/loss conditions, deterministic calculation policy, and fallback-event metadata. Definitions and nested values are immutable after validation.
+
+Authoritative metric values are strict integers in contract v1:
+
+- money uses integer cents;
+- resource and money minima cannot be negative;
+- scores and percentages use inclusive 0–100 bounds;
+- capacities and critical thresholds must be inside metric bounds; and
+- effects use only `add`, `subtract`, `multiply`, `set`, or `transfer` and must reference declared metrics.
+
+Startup Survival begins with $150,000 cash, $15,000 monthly revenue, $45,000 monthly expenses, 2,000 active users, 12 employees, 82/100 customer satisfaction, and 75/100 team morale. Its action and event effects are illustrative declarative data; Brick 3 does not execute them or calculate monthly cash flow.
+
+`initialize_game_state()` creates a separate immutable snapshot with the pinned scenario version, current/max turns, copied metric values, `not-started` status, empty decision history, and deterministic seed metadata. Initialization does not evaluate a turn.
+
+## Future generated scenarios
+
+Prompt-, document-, and URL-based generation will use the same contract as curated content:
+
+```text
+User input or untrusted source
+  -> AI-generated structured JSON
+  -> Pydantic schema validation
+  -> cross-reference validation
+  -> semantic and safety validation
+  -> accepted immutable ScenarioDefinition
+  -> simulation engine
+```
+
+Generated code or expressions will never be executed. Documents and URLs remain untrusted source material with provenance and prompt-injection defenses.
 
 ## Core guarantees
 

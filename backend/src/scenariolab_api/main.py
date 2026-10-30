@@ -3,6 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from scenariolab_api.config import Settings, get_settings
 from scenariolab_api.routes.health import router as health_router
+from scenariolab_api.routes.scenarios import router as scenarios_router
 
 
 def create_app(settings: Settings | None = None) -> FastAPI:
@@ -20,6 +21,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         allow_headers=["Accept", "Content-Type"],
     )
     app.include_router(health_router)
+    app.include_router(scenarios_router)
     return app
 
 

@@ -5,6 +5,7 @@ from scenariolab_api.domain.models import (
     DecisionRecord,
     EventTrigger,
     GameState,
+    MetricChange,
     MetricDefinition,
     OutcomeCondition,
     ScenarioAction,
@@ -12,6 +13,8 @@ from scenariolab_api.domain.models import (
     ScenarioDefinition,
     ScenarioEvent,
     ScenarioMetadata,
+    RecurringRule,
+    RecurringRuleTerm,
     initialize_game_state,
 )
 
@@ -20,6 +23,7 @@ __all__ = [
     "DecisionRecord",
     "EventTrigger",
     "GameState",
+    "MetricChange",
     "MetricDefinition",
     "OutcomeCondition",
     "ScenarioAction",
@@ -27,5 +31,7 @@ __all__ = [
     "ScenarioDefinition",
     "ScenarioEvent",
     "ScenarioMetadata",
+    "RecurringRule",
+    "RecurringRuleTerm",
     "initialize_game_state",
 ]

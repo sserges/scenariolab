@@ -1,4 +1,5 @@
-# ScenarioLab API
+# ScenarioLab API and Engine
 
-The FastAPI transport layer for ScenarioLab. Brick 2 exposes health status only;
-simulation and AI integration belong to later bricks.
+The package contains the FastAPI scenario catalog transport and the pure deterministic
+simulation engine. Brick 4 does not expose game-session HTTP endpoints; callers use
+`scenariolab_api.engine` directly until the application lifecycle is introduced.

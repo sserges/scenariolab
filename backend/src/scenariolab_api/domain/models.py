@@ -138,6 +138,32 @@ class ActionEffect(FrozenModel):
         return self
 
 
+class RecurringRuleTerm(FrozenModel):
+    """A declared metric contribution to a recurring calculation."""
+
+    metric_id: StableId
+    operator: Literal["add", "subtract"]
+
+
+class RecurringRule(FrozenModel):
+    """Update one metric from its current value and declared metric terms."""
+
+    rule_id: StableId
+    target_metric_id: StableId
+    terms: tuple[RecurringRuleTerm, ...] = Field(min_length=1)
+    underflow_behavior: Literal["reject", "exhaust-at-minimum"] = "reject"
+    description: BoundedText
+
+    @model_validator(mode="after")
+    def validate_terms(self) -> Self:
+        term_ids = [term.metric_id for term in self.terms]
+        if len(term_ids) != len(set(term_ids)):
+            raise ValueError("recurring rule term metric IDs must be unique")
+        if self.target_metric_id in term_ids:
+            raise ValueError("recurring rule target cannot also be a term")
+        return self
+
+
 class ConditionClause(FrozenModel):
     reference: ConditionReference
     operator: ComparisonOperator
@@ -227,14 +253,33 @@ class CalculationParameters(FrozenModel):
     unsupported_operator: Literal["reject"] = "reject"
     missing_reference: Literal["reject"] = "reject"
     effect_order: tuple[
-        Literal["action-effects", "event-effects", "outcome-evaluation"],
+        Literal[
+            "action-effects",
+            "recurring-rules",
+            "event-effects",
+            "outcome-evaluation",
+        ],
         ...,
     ] = (
         "action-effects",
+        "recurring-rules",
         "event-effects",
         "outcome-evaluation",
     )
     random_stream_version: Literal["scenario-seed-v1"] = "scenario-seed-v1"
+
+    @model_validator(mode="after")
+    def validate_effect_order(self) -> Self:
+        legacy = ("action-effects", "event-effects", "outcome-evaluation")
+        current = (
+            "action-effects",
+            "recurring-rules",
+            "event-effects",
+            "outcome-evaluation",
+        )
+        if self.effect_order not in {legacy, current}:
+            raise ValueError("effect_order must use a supported deterministic phase order")
+        return self
 
 
 class FallbackPolicy(FrozenModel):
@@ -254,6 +299,7 @@ class ScenarioDefinition(FrozenModel):
     metrics: tuple[MetricDefinition, ...] = Field(min_length=1)
     turn: TurnConfiguration
     actions: tuple[ScenarioAction, ...] = Field(min_length=1)
+    recurring_rules: tuple[RecurringRule, ...] = ()
     events: tuple[ScenarioEvent, ...] = Field(min_length=1)
     win_conditions: tuple[OutcomeCondition, ...] = Field(min_length=1)
     loss_conditions: tuple[OutcomeCondition, ...] = Field(min_length=1)
@@ -277,6 +323,7 @@ class ScenarioDefinition(FrozenModel):
 
     @model_validator(mode="after")
     def validate_definition(self) -> Self:
+        metrics_by_id = {metric.metric_id: metric for metric in self.metrics}
         metric_ids = self._require_unique(
             (metric.metric_id for metric in self.metrics),
             "metric",
@@ -288,6 +335,10 @@ class ScenarioDefinition(FrozenModel):
         event_ids = self._require_unique(
             (event.event_id for event in self.events),
             "event",
+        )
+        self._require_unique(
+            (rule.rule_id for rule in self.recurring_rules),
+            "recurring rule",
         )
         self._require_unique(
             (
@@ -314,6 +365,38 @@ class ScenarioDefinition(FrozenModel):
         for action in self.actions:
             self._validate_conditions(action.preconditions, metric_ids, action_ids)
             self._validate_effects(action.effects, metric_ids)
+        for rule in self.recurring_rules:
+            if rule.target_metric_id not in metric_ids:
+                raise ValueError(
+                    "recurring rule references unknown target metric "
+                    f"'{rule.target_metric_id}'"
+                )
+            for term in rule.terms:
+                if term.metric_id not in metric_ids:
+                    raise ValueError(
+                        "recurring rule references unknown term metric "
+                        f"'{term.metric_id}'"
+                    )
+                if (
+                    term.metric_id in metrics_by_id
+                    and metrics_by_id[term.metric_id].unit
+                    is not metrics_by_id[rule.target_metric_id].unit
+                ):
+                    raise ValueError(
+                        f"recurring rule '{rule.rule_id}' metrics must share a unit"
+                    )
+            if (
+                rule.underflow_behavior == "exhaust-at-minimum"
+                and metrics_by_id[rule.target_metric_id].kind
+                not in {MetricKind.MONEY, MetricKind.RESOURCE}
+            ):
+                raise ValueError(
+                    "exhaust-at-minimum is allowed only for money and resource metrics"
+                )
+        if self.recurring_rules and "recurring-rules" not in self.calculation.effect_order:
+            raise ValueError(
+                "calculation effect_order must include recurring-rules when rules exist"
+            )
         for event in self.events:
             if event.trigger.latest_turn is not None and event.trigger.latest_turn > self.turn.max_turns:
                 raise ValueError(
@@ -321,6 +404,19 @@ class ScenarioDefinition(FrozenModel):
                 )
             self._validate_conditions(event.trigger.conditions, metric_ids, action_ids)
             self._validate_effects(event.effects, metric_ids)
+        for effects in (
+            *(action.effects for action in self.actions),
+            *(event.effects for event in self.events),
+        ):
+            for effect in effects:
+                if (
+                    effect.operator is EffectOperator.TRANSFER
+                    and effect.destination_metric_id is not None
+                    and effect.destination_metric_id in metrics_by_id
+                    and metrics_by_id[effect.metric_id].unit
+                    is not metrics_by_id[effect.destination_metric_id].unit
+                ):
+                    raise ValueError("transfer source and destination must share a unit")
         for outcome in (*self.win_conditions, *self.loss_conditions):
             self._validate_conditions(outcome.conditions, metric_ids, action_ids)
         fallback_ids = set(self.fallback.event_ids)
@@ -391,11 +487,36 @@ class ScenarioDefinition(FrozenModel):
                 )
 
 
+class MetricChange(FrozenModel):
+    metric_id: StableId
+    previous_value: StrictInt
+    new_value: StrictInt
+    delta: StrictInt
+    exhausted: bool = False
+    attempted_value: StrictInt | None = None
+
+    @model_validator(mode="after")
+    def validate_delta(self) -> Self:
+        if self.delta != self.new_value - self.previous_value:
+            raise ValueError("metric change delta must equal new minus previous value")
+        if self.exhausted != (self.attempted_value is not None):
+            raise ValueError(
+                "exhausted metric changes must record exactly one attempted value"
+            )
+        return self
+
+
 class DecisionRecord(FrozenModel):
     action_id: StableId
     action_title: Annotated[str, StringConstraints(min_length=1, max_length=100)]
     turn: PositiveInt
     sequence: PositiveInt
+    event_id: StableId | None = None
+    eligible_event_ids: tuple[StableId, ...] = ()
+    event_random_draw: StrictInt | None = Field(default=None, ge=0)
+    metric_changes: tuple[MetricChange, ...] = ()
+    resulting_status: GameStatus = GameStatus.ACTIVE
+    outcome_reason: StableId = "turn-completed"
 
 
 class SeedMetadata(FrozenModel):
@@ -432,6 +553,24 @@ class GameState(FrozenModel):
     def validate_turn(self) -> Self:
         if self.current_turn > self.max_turns:
             raise ValueError("current_turn cannot exceed max_turns")
+        history_count = len(self.decision_history)
+        if history_count > self.max_turns:
+            raise ValueError("decision history cannot exceed max_turns")
+        if any(
+            record.sequence != index or record.turn != index
+            for index, record in enumerate(self.decision_history, start=1)
+        ):
+            raise ValueError("decision history turn and sequence values must be contiguous")
+        if self.status is GameStatus.NOT_STARTED:
+            if history_count != 0 or self.current_turn != 1:
+                raise ValueError("not-started state cannot contain completed turns")
+        elif self.status is GameStatus.ACTIVE:
+            if history_count == 0 or history_count >= self.max_turns:
+                raise ValueError("active state requires an unfinished decision history")
+            if self.current_turn != history_count + 1:
+                raise ValueError("active state current_turn must be the next turn")
+        elif history_count == 0 or self.current_turn != history_count:
+            raise ValueError("terminal state current_turn must be its last completed turn")
         return self
 
 

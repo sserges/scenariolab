@@ -20,6 +20,8 @@ from scenariolab_api.domain.models import (
     MetricDefinition,
     MetricFormat,
     OutcomeCondition,
+    RecurringRule,
+    RecurringRuleTerm,
     ScenarioAction,
     ScenarioDefinition,
     ScenarioEvent,
@@ -271,6 +273,21 @@ STARTUP_SURVIVAL = ScenarioDefinition(
                     value=3,
                     description="Reflect a small service-quality risk from the cuts.",
                 ),
+            ),
+        ),
+    ),
+    recurring_rules=(
+        RecurringRule(
+            rule_id="monthly-net-cash-flow",
+            target_metric_id="cash",
+            terms=(
+                RecurringRuleTerm(metric_id="monthly-revenue", operator="add"),
+                RecurringRuleTerm(metric_id="monthly-expenses", operator="subtract"),
+            ),
+            underflow_behavior="exhaust-at-minimum",
+            description=(
+                "Apply monthly net cash flow after the selected action and before "
+                "event processing."
             ),
         ),
     ),

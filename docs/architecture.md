@@ -81,6 +81,7 @@ turn:
 metrics: []
 initial_state: {}
 actions: []
+recurring_rules: []
 events: []
 win_conditions: []
 loss_conditions: []
@@ -91,7 +92,7 @@ calculation:
   bound_violation: reject
   unsupported_operator: reject
   missing_reference: reject
-  effect_order: [action-effects, event-effects, outcome-evaluation]
+  effect_order: [action-effects, recurring-rules, event-effects, outcome-evaluation]
   random_stream_version: scenario-seed-v1
 
 fallback:
@@ -166,7 +167,19 @@ Allowed effect operations for contract v1:
 
 Each `ActionEffect` identifies a declared metric, a closed operator, a nonnegative integer operand, a bounded description, and—only for `transfer`—a distinct declared destination metric. No effect may contain executable formulas or refer to undeclared state. Brick 3 validates effects but does not execute them.
 
-For v1, derived formulas should be represented as a small, explicitly designed future contract addition rather than smuggled into strings. If Startup Survival requires cross-metric calculations, add a narrowly scoped allowlisted operation with documented operands and tests before scenario content uses it.
+Effects execute in tuple order with strict integer arithmetic. `add`, `subtract`, `multiply`, and `set` update one metric; `transfer` moves an exact 1:1 integer amount between two metrics that share a unit. An action is atomic: insufficient source resources or any result outside a declared bound rejects the action without changing the supplied state. There is no implicit rounding or clamping.
+
+### 3.6.1 Recurring rules
+
+`recurring_rules` is a backward-compatible, optional tuple of declarative `RecurringRule` values. A rule names a target metric and an ordered tuple of metric terms, each allowlisted as `add` or `subtract`. All participating metrics must exist and share a unit. For each rule, the engine calculates:
+
+```text
+target_next = target_current + declared add terms - declared subtract terms
+```
+
+Rules execute after action effects and before event selection. Later rules see earlier rule results; all terms within one rule are read before its target is replaced. Startup Survival declares `monthly-net-cash-flow` as `cash + monthly-revenue - monthly-expenses`; no metric name or scenario identity is hardcoded in the engine.
+
+The default underflow policy is `reject`. Money and resource targets may instead declare `exhaust-at-minimum`. That policy records the below-minimum attempted value, sets the target to its minimum, and continues to terminal evaluation so bankruptcy or generic resource exhaustion is visible. Overflow and all undeclared underflow behavior reject the transition. This is the only bounded saturation in contract v1.
 
 ### 3.7 Events and triggers
 
@@ -175,8 +188,8 @@ A `ScenarioEvent` contains:
 - stable `event_id`, title, narrative setup, and optional tags;
 - `trigger`, a bounded `EventTrigger`;
 - earliest and optional latest turn;
-- `weight` and `priority` for deterministic seeded selection;
-- `cooldown_turns` and `max_occurrences`;
+- an integer `weight` for deterministic seeded selection;
+- `max_occurrences`;
 - ordered effects, using the same effect contract as decisions;
 - optional player response choices, each with its own allowed effects; and
 - `fallback_eligible`, identifying curated events safe for provider-failure use.
@@ -190,7 +203,7 @@ Brick 3 trigger and outcome clauses use a deliberately small closed structure:
 
 Nested predicates and arbitrary negation are not part of contract v1. Strings are never evaluated as expressions. Metric and action references must resolve during semantic validation.
 
-If several events are eligible, selection uses the scenario's declared priority, weight, maximum-per-turn rule, and named seeded random stream. The engine records the eligible set and chosen event so the run can be reproduced.
+The engine preserves definition order while filtering events by turn window, predicate match, occurrence limit, and effect feasibility. If several remain, it derives an integer draw with SHA-256 from the stream version, seed, scenario ID/version, completed turn, and ordered eligible IDs, then performs weighted selection. At most one event occurs per turn. The eligible IDs, draw, and chosen event are recorded; an empty eligible set produces no event without consuming hidden mutable randomness.
 
 ### 3.8 Win, loss, and ending criteria
 
@@ -203,7 +216,7 @@ If several events are eligible, selection uses the scenario's declared priority,
 - player-facing title and bounded summary; and
 - optional report guidance that cannot change the result.
 
-The scenario must define behavior at the turn limit. Startup Survival has a higher-priority success condition and a low-priority turn-limit failure, so every run has a declared ending. Once an engine marks a run terminal, it will reject further decisions.
+The scenario should define behavior at the turn limit. Matched failures containing a metric or history predicate are hard failures and always precede success. Priority resolves multiple hard failures and multiple successes. A success may beat a lower-priority, turn-only fallback loss; a loss wins an equal-priority tie. If no authored condition resolves the maximum turn, the engine returns the machine reason `turn-limit-reached` as a loss. Once terminal, a run rejects further decisions.
 
 ### 3.9 Deterministic calculation parameters
 
@@ -212,10 +225,10 @@ The scenario must define behavior at the turn limit. Startup Survival has a high
 - `numeric_mode` is strict integers;
 - `money_mode` is integer cents;
 - invalid bounds, unsupported operators, and missing references use a reject policy;
-- `effect_order` declares action effects, event effects, then outcome evaluation; and
+- `effect_order` declares action effects, recurring rules, event effects, then outcome evaluation; and
 - `random_stream_version` pins deterministic seed metadata.
 
-The future engine owns algorithms and turn advancement. The definition chooses only allowlisted policy identifiers. Brick 3 stores these parameters and a seed but performs no calculations or random selection.
+The engine owns algorithms and turn advancement. The definition chooses only allowlisted policy identifiers. Definitions serialized before recurring rules remain valid when they use the legacy action/event/outcome order and declare no recurring rules.
 
 ### 3.10 Catalog metadata versus playable definitions
 
@@ -231,7 +244,7 @@ Catalog entries do not contain actions, events, or authoritative initial state. 
 
 `initialize_game_state(definition, seed=...)` creates a new immutable `GameState` with the pinned scenario ID/version, current turn 1, maximum turns, a copied metric-value mapping, `not-started` status, empty decision history, and `scenario-seed-v1` metadata. Initialization does not apply an action, event, cash flow, or turn transition. The copied mapping prevents future state snapshots from mutating the source definition.
 
-`DecisionRecord` is defined for future history snapshots but remains unused until an engine accepts actions.
+Each accepted turn appends exactly one immutable `DecisionRecord` containing action identity, turn/sequence, eligible and selected event metadata, metric changes, resulting status, and outcome reason. Active states identify the next playable turn. Terminal states retain their last completed turn; a 12-turn scenario therefore never exposes turn 13.
 
 ## 4. Validation pipeline
 
@@ -247,21 +260,22 @@ Validation is identical in principle for curated and AI-generated definitions, w
 
 Validation returns machine-readable issue codes and paths. It must never partially accept a definition or mutate a run.
 
-## 5. Planned authoritative turn lifecycle
+## 5. Authoritative turn lifecycle
 
-Brick 3 does not implement this lifecycle. When the engine is added, each decision request will supply the current run revision and idempotency key and perform one atomic transition:
+The pure engine exports `initialize_game(definition, seed)`, `get_available_actions(definition, state)`, and `resolve_turn(definition, state, action_id)`. `resolve_turn` performs one transactional transition:
 
-1. Verify run is active, revision matches, and decision exists.
-2. Evaluate availability and usage limits against pre-decision state.
-3. Apply decision effects in declared order with exact numeric and rounding rules.
-4. Apply declared automatic phases and bounds at the specified points.
-5. Evaluate eligible events; use validated generated content if available, otherwise the fallback catalog or no-event policy.
-6. Apply event effects in declared order.
-7. Advance the turn at the defined phase.
-8. Evaluate terminal rules by priority, including turn-limit behavior.
-9. Return a new immutable state snapshot and an outcome record containing before/after values, deltas, selected event, predicates matched, warnings, and terminal result.
+1. Validate definition policy and definition/state identity, version, turn limit, metric set, bounds, seed stream, status, and contiguous history.
+2. Reject completed games and unknown actions.
+3. Evaluate action preconditions against the pre-action state and the turn being completed.
+4. Apply action effects in declaration order to a private integer map.
+5. Apply recurring rules in declaration order.
+6. Determine eligible predefined events and select at most one through the pinned seeded stream.
+7. Apply the selected event effects.
+8. Evaluate hard loss conditions.
+9. Evaluate wins and turn-only fallback losses by priority, then enforce the absolute turn limit.
+10. Return `TurnResult` with the previous state, new state, selected action, optional event, eligible event IDs and draw, metric changes, completed turn, status, reason, and the appended decision record.
 
-The application persists the transition atomically. Repeated idempotency keys return the prior result instead of applying the turn twice.
+Every accepted turn advances completion exactly once and appends exactly one record. The engine performs all work on local copies before constructing a new frozen state, so exceptions never partially mutate the caller's snapshot. HTTP revision checks, idempotency keys, and persistence remain application-layer work for a later brick.
 
 ## 6. AI boundary and fallback behavior
 
@@ -320,9 +334,8 @@ Do not persist provider credentials, raw hidden prompts, or sensitive imported d
 - **UI tests:** server-state rendering, history, chart accessibility, save recovery, restart, and terminal report.
 - **End-to-end tests:** 12 turns with a fake AI provider and with forced provider failure.
 
-## 9. Decisions deferred beyond Brick 3
+## 9. Decisions deferred beyond Brick 4
 
-- Engine behavior for applying effects, bounds, event selection, turn advancement, and outcome priority
 - Balance validation for the illustrative Startup Survival values
 - Complete Cybersecurity Crisis and Space Colony definitions
 - Generated TypeScript types versus the current small hand-validated API view models

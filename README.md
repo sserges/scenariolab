@@ -6,13 +6,13 @@ The first playable definition is **Startup Survival**: manage a startup over 12 
 
 ## Project status
 
-**Brick 3: scenario definitions, game state, and predefined scenario catalog** is complete. The repository now contains a validated, immutable Pydantic v2 domain contract, the complete declarative Startup Survival definition, a three-scenario catalog, initial game-state construction, catalog/detail API endpoints, and a catalog-driven React selector. Gameplay, action execution, monthly calculations, persistence, and AI integration intentionally remain out of scope.
+**Brick 4: deterministic simulation engine** is complete. The repository now contains a pure, reusable Python engine that initializes runs, reports eligible actions, resolves immutable turns, applies strict integer effects and declarative recurring rules, selects predefined events reproducibly, and evaluates terminal conditions. Game-session HTTP APIs, persistence, frontend gameplay, and AI integration intentionally remain out of scope.
 
 ## Official predefined scenarios
 
 | Scenario | Objective | Status |
 | --- | --- | --- |
-| Startup Survival | Keep a startup alive for 12 simulated months | Available definition; MVP gameplay is next |
+| Startup Survival | Keep a startup alive for 12 simulated months | Available definition and verified simulation engine |
 | Cybersecurity Crisis | Respond to a company security incident | Planned |
 | Space Colony | Keep a Mars colony of 50 astronauts operational | Planned |
 
@@ -39,8 +39,8 @@ ScenarioLab separates authored or AI-generated content from calculation:
 1. A versioned `ScenarioDefinition` describes a scenario as validated data.
 2. Separate `ScenarioCatalogEntry` records advertise available and planned scenarios without exposing incomplete definitions.
 3. An initial immutable `GameState` copies metric values from a definition without evaluating a decision or turn.
-4. The React client submits a selected decision and displays returned state; it does not authoritatively calculate outcomes.
-5. The future Python engine will validate actions, apply only declared effects using deterministic parameters, enforce bounds and capacities, advance turns, evaluate triggers and terminal criteria, and return outcome records.
+4. The Python engine validates actions, applies declared effects and recurring rules, enforces bounds, selects predefined events, advances turns, evaluates terminal criteria, and returns immutable outcome records.
+5. The future gameplay API will accept selected decisions and return server-calculated state; the React client will only render authoritative outcomes.
 6. Future AI integrations may propose definitions, events, and explanations, but output must pass the same schema and semantic validation. AI-generated code is never executed.
 
 See [docs/architecture.md](docs/architecture.md) for the contract and trust boundaries.
@@ -139,6 +139,7 @@ frontend/
 backend/
   src/scenariolab_api/
     domain/               Immutable Pydantic v2 contracts and game-state initialization
+    engine/               Pure deterministic turn resolution and outcome records
     routes/               FastAPI route modules
     scenarios/            Curated definitions and catalog metadata
     config.py             Backend-only environment settings
@@ -154,7 +155,7 @@ Scenario definitions should remain data, not executable plugins. Engine code mus
 
 ## Scenario contract and numeric conventions
 
-`ScenarioDefinition` contains identity and schema versions, metadata, bounded metric definitions, an explicit initial-state map, turn configuration, declarative actions and effects, triggered events, prioritized win/loss conditions, deterministic calculation policy, and fallback-event metadata. Definitions and nested values are immutable after validation.
+`ScenarioDefinition` contains identity and schema versions, metadata, bounded metric definitions, an explicit initial-state map, turn configuration, declarative actions and effects, recurring rules, triggered events, prioritized win/loss conditions, deterministic calculation policy, and fallback-event metadata. Definitions and nested values are immutable after validation.
 
 Authoritative metric values are strict integers in contract v1:
 
@@ -164,9 +165,52 @@ Authoritative metric values are strict integers in contract v1:
 - capacities and critical thresholds must be inside metric bounds; and
 - effects use only `add`, `subtract`, `multiply`, `set`, or `transfer` and must reference declared metrics.
 
-Startup Survival begins with $150,000 cash, $15,000 monthly revenue, $45,000 monthly expenses, 2,000 active users, 12 employees, 82/100 customer satisfaction, and 75/100 team morale. Its action and event effects are illustrative declarative data; Brick 3 does not execute them or calculate monthly cash flow.
+Startup Survival begins with $150,000 cash, $15,000 monthly revenue, $45,000 monthly expenses, 2,000 active users, 12 employees, 82/100 customer satisfaction, and 75/100 team morale. After action effects, its declarative monthly rule calculates `cash = cash + monthly-revenue - monthly-expenses`, producing an initial net cash burn of $30,000 per turn.
 
 `initialize_game_state()` creates a separate immutable snapshot with the pinned scenario version, current/max turns, copied metric values, `not-started` status, empty decision history, and deterministic seed metadata. Initialization does not evaluate a turn.
+
+## Deterministic engine
+
+The public interface is in `scenariolab_api.engine`:
+
+```python
+from scenariolab_api.engine import (
+    get_available_actions,
+    initialize_game,
+    resolve_turn,
+)
+from scenariolab_api.scenarios.startup_survival import STARTUP_SURVIVAL
+
+state = initialize_game(STARTUP_SURVIVAL, seed=42)
+actions = get_available_actions(STARTUP_SURVIVAL, state)
+result = resolve_turn(
+    STARTUP_SURVIVAL,
+    state,
+    action_id="reduce-operating-expenses",
+)
+state = result.new_state
+```
+
+An accepted turn uses this fixed order:
+
+1. Validate the definition/state pairing and reject terminal games or invalid actions.
+2. Evaluate action preconditions against the pre-action snapshot.
+3. Apply action effects in declaration order.
+4. Apply recurring rules in declaration order.
+5. Evaluate event eligibility and choose at most one event with the stable seeded stream.
+6. Apply the chosen event's effects.
+7. Evaluate failures, successes, and the turn limit.
+8. Return a new state and one complete `DecisionRecord`.
+
+The turn number used by predicates is the turn being completed. Active states point to the next playable turn. Terminal states retain the final completed index, so Startup Survival ends at turn 12 and never exposes a turn 13.
+
+All authoritative values use Python integers; money is integer cents. Action and event effects reject underflow or overflow atomically. A recurring rule may explicitly declare `exhaust-at-minimum`: the engine then records both the attempted value and exhaustion, sets the resource to its declared minimum, and evaluates configured failures. No other clamping or rounding occurs. Contract-v1 transfers are exact 1:1 transfers between metrics with the same unit.
+
+Events are filtered by turn window, trigger predicates, occurrence limit, and effect feasibility in definition order. A SHA-256-derived draw over the pinned seed, scenario identity/version, completed turn, and eligible event IDs performs stable integer-weighted selection. The eligible IDs, draw, and chosen event are recorded; no eligible event is a valid deterministic result.
+
+Matched non-turn-only failures always take precedence over wins. Priorities resolve multiple failures or wins; a success may beat a lower-priority turn-only fallback loss, and a loss wins an equal-priority tie. If no authored condition resolves the maximum turn, the engine returns `turn-limit-reached` as a loss.
+
+Replay requires the exact scenario ID/version, seed, and action sequence. Each successful turn stores one immutable decision record containing metric changes, event selection metadata, status, and outcome reason. Rejected operations never alter the supplied state.
 
 ## Future generated scenarios
 

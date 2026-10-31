@@ -77,5 +77,5 @@ test("loads the available Startup Survival definition without starting gameplay"
   fireEvent.click(await screen.findByRole("button", { name: /View Details/i }));
 
   expect(await screen.findByText("Definition validated")).toBeInTheDocument();
-  expect(screen.getByText("Gameplay begins in a later brick.")).toBeInTheDocument();
+  expect(screen.getByText("Ready for deterministic browser play.")).toBeInTheDocument();
 });

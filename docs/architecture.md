@@ -19,12 +19,12 @@ The design optimizes for:
 
 ```text
 React client
-  displays state, decisions, charts, history, saves
+  displays server state, decisions, deltas, events, and terminal results
        |
-       | typed HTTP requests (untrusted)
+       | scenario identity/version + seed + ordered action IDs (untrusted)
        v
 FastAPI application layer
-  authentication later, run orchestration, provider selection, DTO validation
+  DTO validation, deterministic replay, structured errors
        |
        +---------------------> LLM adapter
        |                         candidate JSON/text only
@@ -277,6 +277,25 @@ The pure engine exports `initialize_game(definition, seed)`, `get_available_acti
 
 Every accepted turn advances completion exactly once and appends exactly one record. The engine performs all work on local copies before constructing a new frozen state, so exceptions never partially mutate the caller's snapshot. HTTP revision checks, idempotency keys, and persistence remain application-layer work for a later brick.
 
+### 5.1 Stateless game HTTP API
+
+Brick 5 exposes two application routes without adding a session store:
+
+- `POST /api/games/start` accepts an available `scenario_id` and optional nonnegative seed. It returns the pinned scenario identity/version, actual seed, initial `GameState`, currently available actions, turn metadata, and full metric definitions required for generic display.
+- `POST /api/games/turn` accepts the scenario ID/version, original seed, ordered prior action IDs, and one new action ID. It never accepts metric values, status, event history, or a client-authored `GameState`.
+
+For a turn request, FastAPI resolves the exact current predefined definition, verifies its version, rejects histories beyond `max_turns`, initializes the engine with the original seed, and replays each prior action through `resolve_turn`. Any unknown, unavailable, impossible, or post-terminal historical action rejects the entire request as `invalid_replay_history`. Only after successful reconstruction does the application resolve the new action. The response contains `TurnResult`, updated state, the appended action-ID history, and next actions from `get_available_actions`.
+
+Identical scenario versions, seeds, histories, and new actions produce identical JSON-compatible domain results. Because JavaScript cannot exactly represent all signed 64-bit integers, the HTTP seed contract is bounded to `0..9007199254740991`; the engine's wider internal seed model remains unchanged.
+
+Business failures use `ErrorResponse` with `detail.code` and `detail.message`. Unknown scenarios return 404, planned scenarios and version/terminal conflicts return 409, and malformed requests, bad histories, or invalid actions return 422. FastAPI request-validation errors are normalized to `invalid_request`. Route handlers contain replay orchestration only and do not duplicate effect, event, metric, or terminal logic.
+
+### 5.2 Frontend authority boundary
+
+React keeps only the accepted scenario metadata, seed, action-ID history, last `TurnResult`, and latest server state needed to render the current page. It never calculates new game state. Metric cards iterate returned `MetricDefinition` values and use `format.style`, currency code, suffix, and `favorable_direction` for presentation. Money is divided by 100 only while formatting cents for display.
+
+The gameplay flow is scenario selection, explicit start, decision selection, confirmation, result display, and either the next decision or a terminal restart. Network, structured API, and response-validation failures leave the last accepted session unchanged and expose retry. A synchronous request guard and disabled controls prevent duplicate submissions. Cybersecurity Crisis, Space Colony, and custom generation remain noninteractive planned content.
+
 ## 6. AI boundary and fallback behavior
 
 ### Candidate scenario definitions
@@ -318,7 +337,9 @@ The UI may disclose that a fallback was used, but gameplay remains valid and num
 
 ## 7. Persistence and versioning
 
-Initial persistence uses browser `localStorage` for a versioned save envelope containing a save-schema version, pinned scenario identity/version/digest, engine version, run ID, revision, seed, current state, action/event history, and timestamps. Treat loaded saves as untrusted: validate before use and reject incompatible or corrupt data with a recoverable UI path.
+Brick 5 intentionally has no persistence. Refreshing the page starts a new frontend session, and restart calls the stateless start route for a fresh seed and initial state.
+
+Future browser persistence may use `localStorage` with a versioned save envelope containing a save-schema version, pinned scenario identity/version/digest, engine version, run ID, revision, seed, action/event history, and timestamps. Treat loaded saves as untrusted: validate before use and reject incompatible or corrupt data with a recoverable UI path.
 
 Because Python is authoritative, a resumed local save should be sent to the API for validation before the next transition. The client must not modify stored numeric state as a game action. A later server store can preserve the same domain shape while adding accounts, concurrency, and durable audit logs.
 
@@ -330,15 +351,17 @@ Do not persist provider credentials, raw hidden prompts, or sensitive imported d
 - **Property tests:** state remains in bounds, invalid actions do not mutate state, terminal runs cannot advance, and identical inputs/seeds produce identical outputs.
 - **Golden scenario tests:** fixed Startup Survival decision sequences with exact metric outcomes and endings.
 - **Provider tests:** malformed JSON, unknown fields, oversized content, timeouts, numeric overreach, and prompt-injected source text all fall back safely.
-- **API tests:** idempotency, stale revision conflicts, validation errors, and atomic transitions.
-- **UI tests:** server-state rendering, history, chart accessibility, save recovery, restart, and terminal report.
+- **API tests:** stateless replay reproducibility, version pinning, malformed histories, terminal rejection, structured validation errors, and definition immutability.
+- **UI tests:** server-state rendering, metric formatting, decision submission, duplicate prevention, event display, retry without state advance, restart, and terminal behavior.
 - **End-to-end tests:** 12 turns with a fake AI provider and with forced provider failure.
 
-## 9. Decisions deferred beyond Brick 4
+## 9. Decisions deferred beyond Brick 5
 
 - Balance validation for the illustrative Startup Survival values
 - Complete Cybersecurity Crisis and Space Colony definitions
-- Generated TypeScript types versus the current small hand-validated API view models
+- Generated TypeScript types versus the current hand-validated API view models
+- Browser save/resume and recovery of corrupt or incompatible saves
+- Server-side idempotency keys if a future stateful transport is introduced
 - Whether generated event content is persisted in full or by digest plus snapshot
 - The concrete LLM provider interface and initial provider
 - Hosting, authentication, server-side persistence, and observability

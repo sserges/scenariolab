@@ -37,7 +37,13 @@ function ArrowIcon() {
   );
 }
 
-function ScenarioCard({ scenario }: { scenario: ScenarioCatalogEntry }) {
+function ScenarioCard({
+  scenario,
+  onOpenScenario,
+}: {
+  scenario: ScenarioCatalogEntry;
+  onOpenScenario: ((scenario: ScenarioCatalogEntry) => void) | undefined;
+}) {
   const [detailState, setDetailState] = useState<DetailState>({ status: "idle" });
   const isAvailable = scenario.availability === "available";
 
@@ -126,8 +132,17 @@ function ScenarioCard({ scenario }: { scenario: ScenarioCatalogEntry }) {
                 -long turns · {detailState.definition.metrics.length} tracked metrics
               </p>
               <p className="mt-2 text-xs text-slate-500">
-                Gameplay begins in a later brick.
+                Ready for deterministic browser play.
               </p>
+              {onOpenScenario !== undefined && (
+                <button
+                  className="mt-4 rounded-xl bg-teal-300 px-4 py-2 font-bold text-slate-950 transition-colors hover:bg-teal-200"
+                  onClick={() => onOpenScenario(scenario)}
+                  type="button"
+                >
+                  Open Simulation
+                </button>
+              )}
             </div>
           )}
           {detailState.status === "error" && (
@@ -141,7 +156,11 @@ function ScenarioCard({ scenario }: { scenario: ScenarioCatalogEntry }) {
   );
 }
 
-export function ScenarioCatalog() {
+export function ScenarioCatalog({
+  onOpenScenario,
+}: {
+  onOpenScenario?: (scenario: ScenarioCatalogEntry) => void;
+}) {
   const [catalogState, setCatalogState] = useState<CatalogState>({
     status: "loading",
   });
@@ -197,7 +216,11 @@ export function ScenarioCatalog() {
   return (
     <div className="mt-7 grid gap-5 md:grid-cols-2 xl:grid-cols-3">
       {catalogState.scenarios.map((scenario) => (
-        <ScenarioCard key={scenario.scenario_id} scenario={scenario} />
+        <ScenarioCard
+          key={scenario.scenario_id}
+          onOpenScenario={onOpenScenario}
+          scenario={scenario}
+        />
       ))}
     </div>
   );

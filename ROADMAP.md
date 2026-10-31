@@ -10,7 +10,8 @@ The official Devpost deadline is confirmed as November 27, 2026 at 5:00 PM EST. 
 - ✅ **Brick 2 — Complete:** React/Vite/Tailwind application shell, FastAPI health service, environment configuration, CORS, dependency locks, frontend tests, backend tests, and production frontend build are verified.
 - ✅ **Brick 3 — Complete:** immutable Pydantic domain models, semantic validation, the Startup Survival definition, three-entry catalog, initial game state, scenario APIs, and catalog-driven frontend are verified.
 - ✅ **Brick 4 — Complete:** pure deterministic turn resolution, recurring calculations, seeded predefined events, immutable outcome history, terminal evaluation, and generic-resource behavior are verified.
-- ⬜ **Next:** Brick 5 may add game-session FastAPI lifecycle endpoints after Brick 4 review.
+- ✅ **Brick 5 — Complete:** stateless replay-backed game APIs and a tested responsive Startup Survival browser flow are verified; planned scenarios remain unavailable.
+- ⬜ **Next:** Brick 6 requires review before work begins; charts, full history, save/resume, AI, and later milestones remain upcoming.
 
 ## Daily milestones
 
@@ -24,10 +25,10 @@ The official Devpost deadline is confirmed as November 27, 2026 at 5:00 PM EST. 
 | Nov 3 | ✅ Complete | **Brick 3:** define Startup Survival v1 scenario data | 12-turn definition validates with seven metrics, three actions, events, and terminal criteria |
 | Nov 4 | ✅ Complete | Implement deterministic state-transition core | Pure transition tests pass for effect order, strict bounds, resource exhaustion, and turn advance |
 | Nov 5 | ✅ Complete | Implement event triggers, seeded selection, and fallback catalog | Replays are stable by seed; predefined events work without an AI provider |
-| Nov 6 | ⬜ Upcoming | Add FastAPI run lifecycle endpoints | Create, inspect, decide, restart, and validation-error flows have API tests |
+| Nov 6 | ✅ Complete | Add stateless FastAPI game lifecycle endpoints | Start, replay, decide, restart-via-start, terminal, and validation-error flows have API tests |
 | Nov 7 | ✅ Complete | Add engine outcome records and terminal evaluation | Every transition is auditable; win/loss/turn-limit cases are tested |
-| Nov 8 | ⬜ Upcoming | Build app shell and core responsive layout | Navigation, scenario header, turn indicator, and empty/loading/error states render |
-| Nov 9 | ⬜ Upcoming | Build decision-card interaction | Allowed decisions display and submit once; disabled and rejected states are clear |
+| Nov 8 | ✅ Complete | Build app shell and core responsive gameplay layout | Navigation, scenario header, turn indicator, and empty/loading/error states render |
+| Nov 9 | ✅ Complete | Build decision-card interaction | Allowed decisions display and submit once; disabled and rejected states are clear |
 | Nov 10 | ⬜ Upcoming | Build metrics and resource dashboard | Units, bounds, capacity, and deltas display from server-returned state |
 | Nov 11 | ⬜ Upcoming | Add Recharts trends | Metric history charts are readable, responsive, and accessible without color alone |
 | Nov 12 | ⬜ Upcoming | Add decision and event history | Ordered audit trail matches engine outcomes and survives page navigation |

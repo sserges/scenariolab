@@ -1,5 +1,6 @@
 # ScenarioLab API and Engine
 
-The package contains the FastAPI scenario catalog transport and the pure deterministic
-simulation engine. Brick 4 does not expose game-session HTTP endpoints; callers use
-`scenariolab_api.engine` directly until the application lifecycle is introduced.
+The package contains the FastAPI scenario catalog and stateless game transport plus
+the pure deterministic simulation engine. `POST /api/games/start` initializes a run;
+`POST /api/games/turn` reconstructs prior state from the pinned seed and action IDs
+before resolving one new action. No server-side game session is stored.

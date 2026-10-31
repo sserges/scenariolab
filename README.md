@@ -6,13 +6,13 @@ The first playable definition is **Startup Survival**: manage a startup over 12 
 
 ## Project status
 
-**Brick 4: deterministic simulation engine** is complete. The repository now contains a pure, reusable Python engine that initializes runs, reports eligible actions, resolves immutable turns, applies strict integer effects and declarative recurring rules, selects predefined events reproducibly, and evaluates terminal conditions. Game-session HTTP APIs, persistence, frontend gameplay, and AI integration intentionally remain out of scope.
+**Brick 5: playable simulation API and frontend** is complete. Startup Survival can now be started, played through all 12 authoritative turns, and restarted in the browser. The FastAPI layer remains stateless: every turn reconstructs the prior state from the pinned scenario version, seed, and ordered action history before calling the deterministic engine. Persistence, AI integration, custom generation, and additional playable scenarios remain out of scope.
 
 ## Official predefined scenarios
 
 | Scenario | Objective | Status |
 | --- | --- | --- |
-| Startup Survival | Keep a startup alive for 12 simulated months | Available definition and verified simulation engine |
+| Startup Survival | Keep a startup alive for 12 simulated months | Playable in the browser |
 | Cybersecurity Crisis | Respond to a company security incident | Planned |
 | Space Colony | Keep a Mars colony of 50 astronauts operational | Planned |
 
@@ -40,7 +40,7 @@ ScenarioLab separates authored or AI-generated content from calculation:
 2. Separate `ScenarioCatalogEntry` records advertise available and planned scenarios without exposing incomplete definitions.
 3. An initial immutable `GameState` copies metric values from a definition without evaluating a decision or turn.
 4. The Python engine validates actions, applies declared effects and recurring rules, enforces bounds, selects predefined events, advances turns, evaluates terminal criteria, and returns immutable outcome records.
-5. The future gameplay API will accept selected decisions and return server-calculated state; the React client will only render authoritative outcomes.
+5. The stateless gameplay API replays accepted action IDs and returns server-calculated state and outcomes; the React client only renders those authoritative values.
 6. Future AI integrations may propose definitions, events, and explanations, but output must pass the same schema and semantic validation. AI-generated code is never executed.
 
 See [docs/architecture.md](docs/architecture.md) for the contract and trust boundaries.
@@ -100,6 +100,8 @@ The API is available at `http://localhost:8000`.
 | `GET /api/health` | Service availability |
 | `GET /api/scenarios` | Metadata for all three official scenarios |
 | `GET /api/scenarios/{scenario_id}` | Validated definition for an available scenario |
+| `POST /api/games/start` | Start a fresh stateless simulation |
+| `POST /api/games/turn` | Replay prior actions and resolve one new decision |
 
 Planned scenario details return HTTP 409 with `scenario_not_available`; unknown IDs return HTTP 404 with `scenario_not_found`.
 
@@ -211,6 +213,77 @@ Events are filtered by turn window, trigger predicates, occurrence limit, and ef
 Matched non-turn-only failures always take precedence over wins. Priorities resolve multiple failures or wins; a success may beat a lower-priority turn-only fallback loss, and a loss wins an equal-priority tie. If no authored condition resolves the maximum turn, the engine returns `turn-limit-reached` as a loss.
 
 Replay requires the exact scenario ID/version, seed, and action sequence. Each successful turn stores one immutable decision record containing metric changes, event selection metadata, status, and outcome reason. Rejected operations never alter the supplied state.
+
+## Playable stateless API
+
+The game routes store no server-side session and accept no client-calculated metrics. `POST /api/games/start` resolves an available definition, uses the supplied JSON-safe nonnegative seed or generates one, initializes the engine, and returns state, available actions, and display metadata.
+
+```json
+{
+  "scenario_id": "startup-survival",
+  "seed": 42
+}
+```
+
+Representative start response fields:
+
+```json
+{
+  "scenario_id": "startup-survival",
+  "scenario_version": "1.0.0",
+  "seed": 42,
+  "state": {
+    "current_turn": 1,
+    "max_turns": 12,
+    "status": "not-started",
+    "metric_values": {
+      "cash": 15000000,
+      "monthly-revenue": 1500000,
+      "monthly-expenses": 4500000
+    }
+  },
+  "available_actions": [
+    { "action_id": "invest-in-marketing", "title": "Invest in Marketing" }
+  ],
+  "scenario": {
+    "title": "Startup Survival",
+    "objective": "Keep the startup alive and operational for 12 simulated months."
+  }
+}
+```
+
+`POST /api/games/turn` pins the returned scenario version and seed, replays the ordered history, then resolves exactly one new action through the engine:
+
+```json
+{
+  "scenario_id": "startup-survival",
+  "scenario_version": "1.0.0",
+  "seed": 42,
+  "action_history": ["reduce-operating-expenses"],
+  "action_id": "invest-in-marketing"
+}
+```
+
+The response contains the reconstructed `TurnResult`, updated `GameState`, complete action-ID history, and actions available for the next turn. Histories longer than the scenario turn limit are rejected before replay. Unknown, ineligible, or terminal histories do not partially advance a game.
+
+Errors use a stable envelope:
+
+```json
+{
+  "detail": {
+    "code": "scenario_not_available",
+    "message": "Scenario 'space-colony' is planned but is not available for play."
+  }
+}
+```
+
+Important codes include `invalid_request`, `scenario_not_found`, `scenario_not_available`, `scenario_version_mismatch`, `invalid_replay_history`, `invalid_action`, `action_not_eligible`, and `game_already_complete`.
+
+## Frontend gameplay flow
+
+The scenario library continues to show all three predefined cards and the planned custom-scenario feature. Startup Survival can open a responsive gameplay screen; the other predefined scenarios remain disabled as **Coming Soon**.
+
+The player starts a run, reviews definition-driven metrics and available decisions, selects and confirms one action, then sees the exact state, deltas, event, status, and outcome returned by FastAPI. Currency formatting converts integer cents only for presentation. Delta color uses each metric's `favorable_direction`; an increase is not assumed to be beneficial. While a request is pending, duplicate submission is blocked. Failed requests preserve the prior accepted state and expose a retry action. Terminal games disable decisions and offer a fresh restart through `/api/games/start`.
 
 ## Future generated scenarios
 

@@ -1,9 +1,11 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import {
   ApiError,
+  getAIBriefing,
   playTurn,
   startGame,
+  type AIBriefingResponse,
   type GameStartResponse,
   type GameState,
   type GameTurnResponse,
@@ -32,6 +34,7 @@ interface GameplayScreenProps {
 }
 
 type PendingOperation = "start" | "turn" | null;
+type BriefingStatus = "idle" | "loading" | "ready" | "failed";
 
 export function GameplayScreen({ catalogEntry, onBack }: GameplayScreenProps) {
   const [session, setSession] = useState<GameSession | null>(null);
@@ -41,7 +44,19 @@ export function GameplayScreen({ catalogEntry, onBack }: GameplayScreenProps) {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [failedOperation, setFailedOperation] =
     useState<Exclude<PendingOperation, null>>("start");
+  const [briefing, setBriefing] = useState<AIBriefingResponse | null>(null);
+  const [briefingStatus, setBriefingStatus] = useState<BriefingStatus>("idle");
   const requestInFlight = useRef(false);
+  const briefingVersion = useRef(0);
+  const briefingController = useRef<AbortController | null>(null);
+  const lastBriefingRequestKey = useRef<string | null>(null);
+
+  useEffect(() => {
+    return () => {
+      briefingVersion.current += 1;
+      briefingController.current?.abort();
+    };
+  }, []);
 
   const isPending = pendingOperation !== null;
   const isTerminal = session?.state.status === "won" || session?.state.status === "lost";
@@ -50,6 +65,7 @@ export function GameplayScreen({ catalogEntry, onBack }: GameplayScreenProps) {
     if (requestInFlight.current) {
       return;
     }
+    invalidateBriefing();
     requestInFlight.current = true;
     setPendingOperation("start");
     setErrorMessage(null);
@@ -90,6 +106,7 @@ export function GameplayScreen({ catalogEntry, onBack }: GameplayScreenProps) {
       setSession(sessionFromTurn(session.scenario, response));
       setSelectedActionId(null);
       setFailedOperation("turn");
+      void requestBriefing(response);
     } catch (error) {
       setFailedOperation("turn");
       setErrorMessage(describeError(error));
@@ -97,6 +114,58 @@ export function GameplayScreen({ catalogEntry, onBack }: GameplayScreenProps) {
       requestInFlight.current = false;
       setPendingOperation(null);
     }
+  }
+
+  async function requestBriefing(response: GameTurnResponse) {
+    const requestKey = JSON.stringify([
+      response.scenario_id,
+      response.scenario_version,
+      response.seed,
+      response.action_history,
+    ]);
+    if (lastBriefingRequestKey.current === requestKey) {
+      return;
+    }
+    lastBriefingRequestKey.current = requestKey;
+    briefingController.current?.abort();
+    const controller = new AbortController();
+    briefingController.current = controller;
+    const version = briefingVersion.current + 1;
+    briefingVersion.current = version;
+    setBriefing(null);
+    setBriefingStatus("loading");
+    try {
+      const responseBody = await getAIBriefing(
+        {
+          scenario_id: response.scenario_id,
+          scenario_version: response.scenario_version,
+          seed: response.seed,
+          action_history: response.action_history,
+        },
+        controller.signal,
+      );
+      if (briefingVersion.current === version) {
+        setBriefing(responseBody);
+        setBriefingStatus("ready");
+      }
+    } catch (error) {
+      if (controller.signal.aborted) {
+        return;
+      }
+      if (briefingVersion.current === version) {
+        setBriefing(null);
+        setBriefingStatus("failed");
+      }
+    }
+  }
+
+  function invalidateBriefing() {
+    briefingVersion.current += 1;
+    briefingController.current?.abort();
+    briefingController.current = null;
+    lastBriefingRequestKey.current = null;
+    setBriefing(null);
+    setBriefingStatus("idle");
   }
 
   function retryLastRequest() {
@@ -181,6 +250,8 @@ export function GameplayScreen({ catalogEntry, onBack }: GameplayScreenProps) {
         </div>
       ) : (
         <GameBoard
+          briefing={briefing}
+          briefingStatus={briefingStatus}
           isPending={isPending}
           onRestart={() => void beginSimulation()}
           onSelectAction={setSelectedActionId}
@@ -195,6 +266,8 @@ export function GameplayScreen({ catalogEntry, onBack }: GameplayScreenProps) {
 
 interface GameBoardProps {
   session: GameSession;
+  briefing: AIBriefingResponse | null;
+  briefingStatus: BriefingStatus;
   selectedActionId: string | null;
   isPending: boolean;
   onSelectAction: (actionId: string) => void;
@@ -204,6 +277,8 @@ interface GameBoardProps {
 
 function GameBoard({
   session,
+  briefing,
+  briefingStatus,
   selectedActionId,
   isPending,
   onSelectAction,
@@ -282,7 +357,10 @@ function GameBoard({
       </section>
 
       {session.lastResult !== null && (
-        <TurnSummary result={session.lastResult} turnUnit={session.scenario.turn.unit} />
+        <>
+          <TurnSummary result={session.lastResult} turnUnit={session.scenario.turn.unit} />
+          <AIBriefingPanel briefing={briefing} status={briefingStatus} />
+        </>
       )}
 
       {!isTerminal && (
@@ -335,6 +413,87 @@ function GameBoard({
         </section>
       )}
     </div>
+  );
+}
+
+function AIBriefingPanel({
+  briefing,
+  status,
+}: {
+  briefing: AIBriefingResponse | null;
+  status: BriefingStatus;
+}) {
+  if (status === "loading") {
+    return (
+      <section
+        aria-live="polite"
+        className="rounded-3xl border border-violet-300/15 bg-violet-300/5 p-6 sm:p-8"
+      >
+        <p className="text-sm font-semibold text-violet-200">AI strategic briefing</p>
+        <p className="mt-3 text-slate-300" role="status">
+          Preparing AI briefingâ€¦
+        </p>
+      </section>
+    );
+  }
+  if (status === "failed") {
+    return (
+      <section
+        aria-live="polite"
+        className="rounded-3xl border border-slate-300/10 bg-white/[0.025] p-6 sm:p-8"
+      >
+        <p className="text-sm font-semibold text-slate-300">AI briefing unavailable</p>
+        <p className="mt-2 text-sm leading-6 text-slate-400">
+          The simulation result is complete and authoritative. You can continue playing.
+        </p>
+      </section>
+    );
+  }
+  if (status !== "ready" || briefing === null) {
+    return null;
+  }
+  return (
+    <section
+      aria-labelledby="ai-briefing-heading"
+      className="rounded-3xl border border-violet-300/15 bg-violet-300/5 p-6 sm:p-8"
+    >
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <p className="text-sm font-semibold text-violet-200">AI strategic briefing</p>
+        <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs font-bold uppercase tracking-wider text-slate-300">
+          {briefing.source === "live" ? "Live AI" : "Deterministic fallback"}
+        </span>
+      </div>
+      <h2 className="mt-3 text-2xl font-bold text-white" id="ai-briefing-heading">
+        {briefing.headline}
+      </h2>
+      <p className="mt-4 leading-7 text-slate-300">{briefing.situation_summary}</p>
+      <dl className="mt-6 grid gap-5 lg:grid-cols-2">
+        <div>
+          <dt className="text-xs font-bold uppercase tracking-wider text-slate-500">
+            Consequences
+          </dt>
+          <dd className="mt-2 text-sm leading-6 text-slate-300">
+            {briefing.consequence_explanation}
+          </dd>
+        </div>
+        <div>
+          <dt className="text-xs font-bold uppercase tracking-wider text-slate-500">
+            Strategic insight
+          </dt>
+          <dd className="mt-2 text-sm leading-6 text-slate-300">
+            {briefing.strategic_insight}
+          </dd>
+        </div>
+      </dl>
+      <div className="mt-6 rounded-2xl border border-white/10 bg-slate-950/30 p-4">
+        <p className="text-xs font-bold uppercase tracking-wider text-slate-500">
+          What may come next
+        </p>
+        <p className="mt-2 text-sm leading-6 text-slate-300">
+          {briefing.next_turn_teaser}
+        </p>
+      </div>
+    </section>
   );
 }
 

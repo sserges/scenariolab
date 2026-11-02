@@ -13,6 +13,7 @@ from scenariolab_api.engine import (
     initialize_game,
     resolve_turn,
 )
+from scenariolab_api.engine.models import TurnResult
 from scenariolab_api.scenarios import get_catalog_entry, get_scenario_definition
 from scenariolab_api.schemas import (
     ErrorResponse,
@@ -83,7 +84,11 @@ def play_turn(request: GameTurnRequest) -> GameTurnResponse:
             "Action history exceeds the scenario turn limit.",
         )
 
-    state = _replay_history(definition, request.seed, request.action_history)
+    state, _latest_result = replay_history(
+        definition,
+        request.seed,
+        request.action_history,
+    )
     if state.status in {GameStatus.WON, GameStatus.LOST}:
         _raise_api_error(
             status.HTTP_409_CONFLICT,
@@ -132,15 +137,17 @@ def _get_playable_definition(scenario_id: str) -> ScenarioDefinition:
     return definition
 
 
-def _replay_history(
+def replay_history(
     definition: ScenarioDefinition,
     seed: int,
     action_history: tuple[str, ...],
-) -> GameState:
+) -> tuple[GameState, TurnResult | None]:
     state = initialize_game(definition, seed)
+    latest_result: TurnResult | None = None
     for turn_index, action_id in enumerate(action_history, start=1):
         try:
-            state = resolve_turn(definition, state, action_id).new_state
+            latest_result = resolve_turn(definition, state, action_id)
+            state = latest_result.new_state
         except EngineError as error:
             _raise_api_error(
                 status.HTTP_422_UNPROCESSABLE_CONTENT,
@@ -150,7 +157,7 @@ def _replay_history(
                     f"{error.code}."
                 ),
             )
-    return state
+    return state, latest_result
 
 
 def _display_metadata(definition: ScenarioDefinition) -> ScenarioDisplayMetadata:

@@ -153,6 +153,22 @@ export interface GameTurnResponse {
   action_history: string[];
 }
 
+export interface AIBriefingRequest {
+  scenario_id: string;
+  scenario_version: string;
+  seed: number;
+  action_history: string[];
+}
+
+export interface AIBriefingResponse {
+  source: "live" | "fallback";
+  headline: string;
+  situation_summary: string;
+  consequence_explanation: string;
+  strategic_insight: string;
+  next_turn_teaser: string;
+}
+
 export class ApiError extends Error {
   readonly code: string;
   readonly status: number;
@@ -231,6 +247,17 @@ export async function playTurn(
   const body = await requestJson("/api/games/turn", "POST", request, signal);
   if (!isGameTurnResponse(body)) {
     throw new Error("Game turn response did not match the expected contract");
+  }
+  return body;
+}
+
+export async function getAIBriefing(
+  request: AIBriefingRequest,
+  signal?: AbortSignal,
+): Promise<AIBriefingResponse> {
+  const body = await requestJson("/api/ai/briefing", "POST", request, signal);
+  if (!isAIBriefingResponse(body)) {
+    throw new Error("AI briefing response did not match the expected contract");
   }
   return body;
 }
@@ -340,6 +367,18 @@ function isGameTurnResponse(value: unknown): value is GameTurnResponse {
     Array.isArray(value.available_actions) &&
     value.available_actions.every(isScenarioAction) &&
     isStringArray(value.action_history)
+  );
+}
+
+function isAIBriefingResponse(value: unknown): value is AIBriefingResponse {
+  return (
+    isRecord(value) &&
+    (value.source === "live" || value.source === "fallback") &&
+    isBriefingText(value.headline, 140) &&
+    isBriefingText(value.situation_summary, 500) &&
+    isBriefingText(value.consequence_explanation, 500) &&
+    isBriefingText(value.strategic_insight, 500) &&
+    isBriefingText(value.next_turn_teaser, 240)
   );
 }
 
@@ -513,4 +552,8 @@ function isNullableString(value: unknown): value is string | null {
 
 function isStringArray(value: unknown): value is string[] {
   return Array.isArray(value) && value.every((item) => typeof item === "string");
+}
+
+function isBriefingText(value: unknown, maxLength: number): value is string {
+  return typeof value === "string" && value.trim().length > 0 && value.length <= maxLength;
 }

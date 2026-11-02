@@ -11,7 +11,8 @@ The official Devpost deadline is confirmed as November 27, 2026 at 5:00 PM EST. 
 - ✅ **Brick 3 — Complete:** immutable Pydantic domain models, semantic validation, the Startup Survival definition, three-entry catalog, initial game state, scenario APIs, and catalog-driven frontend are verified.
 - ✅ **Brick 4 — Complete:** pure deterministic turn resolution, recurring calculations, seeded predefined events, immutable outcome history, terminal evaluation, and generic-resource behavior are verified.
 - ✅ **Brick 5 — Complete:** stateless replay-backed game APIs and a tested responsive Startup Survival browser flow are verified; planned scenarios remain unavailable.
-- ⬜ **Next:** Brick 6 requires review before work begins; charts, full history, save/resume, AI, and later milestones remain upcoming.
+- 🟨 **Brick 6 — Implemented, live verification pending:** OpenAI-compatible provider configuration, stateless grounded briefings, strict output validation, deterministic fallback, independent frontend loading, cost guards, and mocked failure coverage are verified. A credentialed provider smoke test remains required before the brick receives a green completion mark. Brick 7 has not started.
+- ✅ **Playwright E2E setup — Complete:** Playwright 1.64.1 and Chromium are configured with isolated FastAPI/Vite startup, protected AI-route mocking, deterministic real-engine gameplay, mobile coverage, failure artifacts, seven passing headless journeys, and a passing headed smoke test. Future save/resume and ending-report journeys remain gated on those product features.
 
 ## Daily milestones
 
@@ -33,15 +34,15 @@ The official Devpost deadline is confirmed as November 27, 2026 at 5:00 PM EST. 
 | Nov 11 | ⬜ Upcoming | Add Recharts trends | Metric history charts are readable, responsive, and accessible without color alone |
 | Nov 12 | ⬜ Upcoming | Add decision and event history | Ordered audit trail matches engine outcomes and survives page navigation |
 | Nov 13 | ⬜ Upcoming | Add `localStorage` save/resume/restart | Versioned saves restore safely; corrupt or incompatible saves fail gracefully |
-| Nov 14 | ⬜ Upcoming | Introduce configurable LLM provider interface | Provider config stays server-side; fake provider supports deterministic tests |
+| Nov 14 | ✅ Complete | Introduce configurable LLM provider interface | Provider config stays server-side; mocked provider and deterministic fallback tests pass |
 | Nov 15 | ⬜ Upcoming | Generate and validate AI event candidates | Invalid, unsafe, late, and out-of-contract responses are rejected |
-| Nov 16 | ⬜ Upcoming | Generate grounded turn narratives | Narratives receive only recorded results and cannot alter numeric state |
+| Nov 16 | ✅ Automated verification complete; 🟨 live smoke pending | Generate grounded turn narratives | Stateless replay grounds validated briefings; real-provider smoke awaits credentials and authorization |
 | Nov 17 | ⬜ Upcoming | Complete full 12-turn Startup Survival loop | A player can start, play, save, resume, and reach an ending without AI access |
 | Nov 18 | ⬜ Upcoming | Build ending report | Report summarizes result, metric trends, pivotal decisions, and event history |
 | Nov 19 | ⬜ Upcoming | MVP integration and failure-mode pass | Provider timeout, malformed output, refresh, duplicate action, and API errors tested |
 | Nov 20 | ⬜ Upcoming | Accessibility and responsive usability pass | Keyboard flow, focus, labels, contrast, mobile, and reduced-motion issues addressed |
 | Nov 21 | ⬜ Upcoming | Expand Pytest and Vitest coverage | Critical engine invariants and UI state branches have meaningful assertions |
-| Nov 22 | ⬜ Upcoming | Complete Playwright critical journeys | Happy path, save/resume, restart, fallback, and ending-report journeys pass |
+| Nov 22 | 🟨 Foundation complete; future-feature journeys pending | Complete Playwright critical journeys | Homepage, gameplay, three-turn event, terminal/restart, API failure, duplicate prevention, mocked AI, and mobile journeys pass; save/resume and ending-report coverage await implementation |
 | Nov 23 | ⬜ Upcoming | Stretch spike: prompt-to-scenario generation | Timeboxed validated prototype or documented deferral; MVP remains unchanged |
 | Nov 24 | ⬜ Upcoming | Stretch spike: PDF/document/URL ingestion | Timeboxed provenance and injection-resistant pipeline prototype or deferral |
 | Nov 25 | ⬜ Upcoming | **Internal submission:** release candidate and demo freeze | Clean-machine runbook, demo script, compliance checklist, and RC tag candidate ready |

@@ -6,7 +6,7 @@ The first playable definition is **Startup Survival**: manage a startup over 12 
 
 ## Project status
 
-**Brick 5: playable simulation API and frontend** is complete. Startup Survival can now be started, played through all 12 authoritative turns, and restarted in the browser. The FastAPI layer remains stateless: every turn reconstructs the prior state from the pinned scenario version, seed, and ordered action history before calling the deterministic engine. Persistence, AI integration, custom generation, and additional playable scenarios remain out of scope.
+**Brick 6: live AI integration** is implemented and verified with mocked provider responses and deterministic fallback. After each accepted turn, the browser independently requests a grounded strategic briefing; metrics update without waiting for AI, and provider failure never blocks play. A real-provider smoke test remains pending until a backend API key is securely configured and usage is authorized, so Brick 6 is not yet marked fully verified. Persistence, custom generation, and additional playable scenarios remain out of scope.
 
 ## Official predefined scenarios
 
@@ -41,7 +41,7 @@ ScenarioLab separates authored or AI-generated content from calculation:
 3. An initial immutable `GameState` copies metric values from a definition without evaluating a decision or turn.
 4. The Python engine validates actions, applies declared effects and recurring rules, enforces bounds, selects predefined events, advances turns, evaluates terminal criteria, and returns immutable outcome records.
 5. The stateless gameplay API replays accepted action IDs and returns server-calculated state and outcomes; the React client only renders those authoritative values.
-6. Future AI integrations may propose definitions, events, and explanations, but output must pass the same schema and semantic validation. AI-generated code is never executed.
+6. The optional AI briefing service receives only replayed engine facts, validates structured narrative output, and falls back deterministically. It cannot alter state, choose events, or execute generated code.
 
 See [docs/architecture.md](docs/architecture.md) for the contract and trust boundaries.
 
@@ -75,6 +75,13 @@ cd ../backend
 uv sync --dev
 ```
 
+Install the Chromium binary used by Playwright after frontend dependencies are installed:
+
+```powershell
+cd frontend
+npx playwright install chromium
+```
+
 Both applications provide an environment template. The checked-in defaults work together locally, so copying them is optional until a value needs to change:
 
 ```powershell
@@ -102,6 +109,7 @@ The API is available at `http://localhost:8000`.
 | `GET /api/scenarios/{scenario_id}` | Validated definition for an available scenario |
 | `POST /api/games/start` | Start a fresh stateless simulation |
 | `POST /api/games/turn` | Replay prior actions and resolve one new decision |
+| `POST /api/ai/briefing` | Replay completed actions and narrate the latest outcome |
 
 Planned scenario details return HTTP 409 with `scenario_not_available`; unknown IDs return HTTP 404 with `scenario_not_found`.
 
@@ -114,6 +122,47 @@ npm run dev
 
 Open `http://localhost:5173`. The header reports **API Connected** when the health endpoint returns the expected contract and **API Unavailable** when it cannot be reached.
 
+## Optional live AI configuration
+
+The backend uses an OpenAI-compatible Chat Completions endpoint. Copy `backend/.env.example` to the ignored `backend/.env`, then set these backend-only values:
+
+| Variable | Purpose | Default/limit |
+| --- | --- | --- |
+| `SCENARIOLAB_AI_API_KEY` | Provider credential; empty means fallback-only mode | empty |
+| `SCENARIOLAB_AI_MODEL` | Provider model identifier | `gpt-4.1-mini` example |
+| `SCENARIOLAB_AI_BASE_URL` | Operator-controlled API root | `https://api.openai.com/v1` |
+| `SCENARIOLAB_AI_TIMEOUT_SECONDS` | Whole provider request timeout | `10`, allowed `1..30` |
+| `SCENARIOLAB_AI_MAX_RESPONSE_TOKENS` | Provider output cap | `500`, allowed `100..800` |
+| `SCENARIOLAB_AI_PROVIDER_CALLS_PER_MINUTE` | Per-process, per-caller provider-attempt guard | `20`, allowed `1..120` |
+
+Never place the key in `frontend/.env`, a `VITE_` variable, source control, logs, saves, or prompts. The client cannot select the model or provider URL. With no key, all automated tests and normal gameplay use deterministic fallback briefings.
+
+`POST /api/ai/briefing` accepts only replay identity, never metrics or narrative claims:
+
+```json
+{
+  "scenario_id": "startup-survival",
+  "scenario_version": "1.0.0",
+  "seed": 42,
+  "action_history": ["reduce-operating-expenses"]
+}
+```
+
+```json
+{
+  "source": "fallback",
+  "headline": "Reduce Operating Expenses Sets the Course",
+  "situation_summary": "The team chose Reduce Operating Expenses: Cut discretionary spending and renegotiate services to extend the company's runway.",
+  "consequence_explanation": "The authoritative engine recorded these movements: Cash decreased, Monthly Expenses decreased, Customer Satisfaction decreased, Team Morale decreased.",
+  "strategic_insight": "Keep close watch on Cash, Customer Satisfaction, Team Morale after this tradeoff.",
+  "next_turn_teaser": "A future turn may test whether this choice remains resilient as conditions change."
+}
+```
+
+The server reconstructs the exact latest `TurnResult`, supplies the scenario objective, action, optional triggered event, metric changes, current metrics, status, and outcome reason as established facts, then accepts only the five bounded response strings. Malformed JSON, timeouts, rate limits, HTTP errors, oversized responses, unsupported numeric claims, and missing configuration all produce `source: "fallback"` without exposing provider details.
+
+One full Startup Survival run can request at most one briefing for each of its 12 turns. Identical live requests are cached in a bounded in-memory cache, output is capped at 500 tokens by default, and no automatic provider retry occurs. Actual cost depends on the configured provider and model; estimate it from the provider's current per-token rates using `input tokens × input rate + output tokens × output rate`, multiplied by at most 12 requests per run. For a public deployment, keep the application guard and add infrastructure-level rate limits or authentication because the current in-process limiter is not shared across replicas.
+
 ## Run tests and builds
 
 ```powershell
@@ -123,23 +172,59 @@ uv run pytest
 cd ../frontend
 npm test
 npm run build
+npm run test:e2e
 ```
 
-Frontend tests use Vitest and React Testing Library. Backend endpoint tests use Pytest and HTTPX.
+Frontend component tests use Vitest and React Testing Library. Backend endpoint tests use Pytest and HTTPX. Playwright starts an isolated FastAPI server on `127.0.0.1:8010` and Vite on `127.0.0.1:5174`; it does not target a deployed or production environment.
+
+### Playwright browser tests
+
+The Chromium project runs headlessly by default with screenshots on failure, trace capture on the first retry, and an HTML report:
+
+```powershell
+cd frontend
+
+# Headless Chromium suite
+npm run test:e2e
+
+# Visible Chromium browser
+npm run test:e2e:headed
+
+# Interactive Playwright UI
+npm run test:e2e:ui
+
+# Open the most recent HTML report
+npm run test:e2e:report
+```
+
+The E2E fixture injects seed `42` into the real game-start request for repeatability while all start and turn calculations still execute in FastAPI. It intercepts every browser `POST /api/ai/briefing`, validates the replay identity/history, and returns a schema-valid mock briefing. The Playwright backend process also overrides `SCENARIOLAB_AI_API_KEY` to empty as defense in depth. The real key in ignored `backend/.env` is never read into the E2E provider, printed, recorded in traces, or sent over the network. Tests that expect a briefing assert the mocked headline and call count, so a missing interception fails rather than silently passing.
+
+If Chromium is missing or Playwright reports an executable error, run:
+
+```powershell
+cd frontend
+npx playwright install chromium
+npx playwright install --list
+```
+
+On Windows, allow the browser download and user-cache write if prompted. If an E2E server port is already occupied, stop the stale local process on `5174` or `8010` and rerun. Generated reports, traces, screenshots, and `test-results` are ignored by Git.
 
 ## Project structure
 
 ```text
 frontend/
+  e2e/                   Playwright browser journeys and protected AI mock fixture
   src/
     components/           Reusable React UI, including API status
     lib/                  Browser API client and response validation
     test/                 Shared Vitest setup
   .env.example            Public Vite configuration template
   package.json            Frontend scripts and dependencies
+  playwright.config.ts    Isolated Chromium and local web-server configuration
   vite.config.ts          Vite, Tailwind CSS, and Vitest configuration
 backend/
   src/scenariolab_api/
+    ai/                   Grounding, provider adapter, validated output, cache, and fallback
     domain/               Immutable Pydantic v2 contracts and game-state initialization
     engine/               Pure deterministic turn resolution and outcome records
     routes/               FastAPI route modules
@@ -308,7 +393,7 @@ Generated code or expressions will never be executed. Documents and URLs remain 
 - All external and AI-produced data is untrusted until validated.
 - Scenario content can express only allowlisted effects and trigger predicates.
 - Explanations are grounded in recorded engine inputs and outputs.
-- The normal gameplay loop has no hard dependency on a successful AI request.
+- The normal gameplay loop has no hard dependency on a successful AI request. Briefing requests run separately after authoritative turn responses, and stale responses are discarded after another decision or restart.
 
 ## Planning and compliance
 

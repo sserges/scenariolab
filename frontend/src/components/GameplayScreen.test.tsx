@@ -4,7 +4,10 @@ import { expect, test, vi } from "vitest";
 import {
   gameStartFixture,
   gameTurnFixture,
+  fallbackBriefingFixture,
+  liveBriefingFixture,
   scenarioCatalogFixture,
+  secondGameTurnFixture,
   terminalTurnFixture,
 } from "../test/scenarioFixtures";
 import { GameplayScreen } from "./GameplayScreen";
@@ -55,7 +58,8 @@ test("submits a selected decision and renders only server-returned results and e
   const fetchMock = vi
     .fn()
     .mockResolvedValueOnce(jsonResponse(gameStartFixture))
-    .mockResolvedValueOnce(jsonResponse(gameTurnFixture));
+    .mockResolvedValueOnce(jsonResponse(gameTurnFixture))
+    .mockResolvedValueOnce(jsonResponse(liveBriefingFixture));
   vi.stubGlobal("fetch", fetchMock);
   renderGameplay();
   await startSimulation();
@@ -74,6 +78,8 @@ test("submits a selected decision and renders only server-returned results and e
   const revenueCard = document.querySelector('[data-metric-id="monthly-revenue"]');
   expect(revenueCard).toHaveAttribute("data-change", "unchanged");
   expect(revenueCard).toHaveTextContent("No change");
+  expect(await screen.findByText(liveBriefingFixture.headline)).toBeInTheDocument();
+  expect(screen.getByText("Live AI")).toBeInTheDocument();
 
   const request = JSON.parse(String(fetchMock.mock.calls[1]?.[1]?.body)) as Record<string, unknown>;
   expect(request).toMatchObject({
@@ -90,7 +96,8 @@ test("keeps current state after a failed turn and offers a retry", async () => {
     .fn()
     .mockResolvedValueOnce(jsonResponse(gameStartFixture))
     .mockRejectedValueOnce(new TypeError("Failed to fetch"))
-    .mockResolvedValueOnce(jsonResponse(gameTurnFixture));
+    .mockResolvedValueOnce(jsonResponse(gameTurnFixture))
+    .mockResolvedValueOnce(jsonResponse(fallbackBriefingFixture));
   vi.stubGlobal("fetch", fetchMock);
   renderGameplay();
   await startSimulation();
@@ -113,7 +120,8 @@ test("prevents duplicate turn submissions while a request is pending", async () 
   const fetchMock = vi
     .fn()
     .mockResolvedValueOnce(jsonResponse(gameStartFixture))
-    .mockReturnValueOnce(pendingTurn);
+    .mockReturnValueOnce(pendingTurn)
+    .mockResolvedValueOnce(jsonResponse(liveBriefingFixture));
   vi.stubGlobal("fetch", fetchMock);
   renderGameplay();
   await startSimulation();
@@ -126,7 +134,10 @@ test("prevents duplicate turn submissions while a request is pending", async () 
   expect(fetchMock).toHaveBeenCalledTimes(2);
   expect(screen.getByRole("button", { name: "Resolving Decision…" })).toBeDisabled();
   resolveTurn?.(jsonResponse(gameTurnFixture));
-  await screen.findByText("$127,500");
+  await screen.findByText(liveBriefingFixture.headline);
+  expect(
+    fetchMock.mock.calls.filter(([url]) => String(url).endsWith("/api/ai/briefing")),
+  ).toHaveLength(1);
 });
 
 test("renders terminal victory, disables decisions, and restarts with fresh state", async () => {
@@ -134,6 +145,7 @@ test("renders terminal victory, disables decisions, and restarts with fresh stat
     .fn()
     .mockResolvedValueOnce(jsonResponse(gameStartFixture))
     .mockResolvedValueOnce(jsonResponse(terminalTurnFixture))
+    .mockResolvedValueOnce(jsonResponse(fallbackBriefingFixture))
     .mockResolvedValueOnce(jsonResponse({ ...gameStartFixture, seed: 77 }));
   vi.stubGlobal("fetch", fetchMock);
   renderGameplay();
@@ -180,4 +192,113 @@ test("rejects unexpected start response data instead of rendering it", async () 
   expect(await screen.findByText("Simulation request failed")).toBeInTheDocument();
   expect(screen.getByText(/unexpected simulation data/i)).toBeInTheDocument();
   expect(screen.queryByText("Company metrics")).not.toBeInTheDocument();
+});
+
+test("shows AI loading while updated authoritative metrics remain playable", async () => {
+  const pendingBriefing = new Promise<Response>(() => undefined);
+  vi.stubGlobal(
+    "fetch",
+    vi
+      .fn()
+      .mockResolvedValueOnce(jsonResponse(gameStartFixture))
+      .mockResolvedValueOnce(jsonResponse(gameTurnFixture))
+      .mockReturnValueOnce(pendingBriefing),
+  );
+  renderGameplay();
+  await startSimulation();
+
+  fireEvent.click(screen.getByRole("radio", { name: /Reduce Operating Expenses/ }));
+  fireEvent.click(screen.getByRole("button", { name: "Confirm Decision" }));
+
+  expect(await screen.findByText("$127,500")).toBeInTheDocument();
+  expect(screen.getByText("Preparing AI briefingâ€¦")).toBeInTheDocument();
+  expect(screen.getByRole("radio", { name: /Invest in Marketing/ })).toBeEnabled();
+});
+
+test("renders deterministic fallback briefing disclosure", async () => {
+  vi.stubGlobal(
+    "fetch",
+    vi
+      .fn()
+      .mockResolvedValueOnce(jsonResponse(gameStartFixture))
+      .mockResolvedValueOnce(jsonResponse(gameTurnFixture))
+      .mockResolvedValueOnce(jsonResponse(fallbackBriefingFixture)),
+  );
+  renderGameplay();
+  await startSimulation();
+
+  fireEvent.click(screen.getByRole("radio", { name: /Reduce Operating Expenses/ }));
+  fireEvent.click(screen.getByRole("button", { name: "Confirm Decision" }));
+
+  expect(await screen.findByText(fallbackBriefingFixture.headline)).toBeInTheDocument();
+  expect(screen.getByText("Deterministic fallback")).toBeInTheDocument();
+});
+
+test("keeps gameplay functional when the AI request fails", async () => {
+  const fetchMock = vi
+    .fn()
+    .mockResolvedValueOnce(jsonResponse(gameStartFixture))
+    .mockResolvedValueOnce(jsonResponse(gameTurnFixture))
+    .mockRejectedValueOnce(new TypeError("AI unavailable"))
+    .mockResolvedValueOnce(jsonResponse(secondGameTurnFixture))
+    .mockResolvedValueOnce(jsonResponse(fallbackBriefingFixture));
+  vi.stubGlobal("fetch", fetchMock);
+  renderGameplay();
+  await startSimulation();
+
+  fireEvent.click(screen.getByRole("radio", { name: /Reduce Operating Expenses/ }));
+  fireEvent.click(screen.getByRole("button", { name: "Confirm Decision" }));
+  expect(await screen.findByText("AI briefing unavailable")).toBeInTheDocument();
+
+  fireEvent.click(screen.getByRole("radio", { name: /Reduce Operating Expenses/ }));
+  fireEvent.click(screen.getByRole("button", { name: "Confirm Decision" }));
+  expect(await screen.findByText("Month 2 resolved")).toBeInTheDocument();
+});
+
+test("prevents a stale briefing from replacing the latest turn", async () => {
+  let resolveOldBriefing: ((value: Response) => void) | undefined;
+  const oldBriefing = new Promise<Response>((resolve) => {
+    resolveOldBriefing = resolve;
+  });
+  let turnCalls = 0;
+  let briefingCalls = 0;
+  const latestBriefing = {
+    ...liveBriefingFixture,
+    headline: "The Latest Decision Reframes the Outlook",
+  };
+  const fetchMock = vi.fn().mockImplementation((input: RequestInfo | URL) => {
+    const url = String(input);
+    if (url.endsWith("/api/games/start")) {
+      return Promise.resolve(jsonResponse(gameStartFixture));
+    }
+    if (url.endsWith("/api/games/turn")) {
+      turnCalls += 1;
+      return Promise.resolve(
+        jsonResponse(turnCalls === 1 ? gameTurnFixture : secondGameTurnFixture),
+      );
+    }
+    briefingCalls += 1;
+    return briefingCalls === 1
+      ? oldBriefing
+      : Promise.resolve(jsonResponse(latestBriefing));
+  });
+  vi.stubGlobal("fetch", fetchMock);
+  renderGameplay();
+  await startSimulation();
+
+  fireEvent.click(screen.getByRole("radio", { name: /Reduce Operating Expenses/ }));
+  fireEvent.click(screen.getByRole("button", { name: "Confirm Decision" }));
+  expect(await screen.findByText("Preparing AI briefingâ€¦")).toBeInTheDocument();
+
+  fireEvent.click(screen.getByRole("radio", { name: /Reduce Operating Expenses/ }));
+  fireEvent.click(screen.getByRole("button", { name: "Confirm Decision" }));
+  expect(await screen.findByText(latestBriefing.headline)).toBeInTheDocument();
+
+  resolveOldBriefing?.(
+    jsonResponse({ ...liveBriefingFixture, headline: "Outdated Briefing" }),
+  );
+  await waitFor(() => {
+    expect(screen.queryByText("Outdated Briefing")).not.toBeInTheDocument();
+    expect(screen.getByText(latestBriefing.headline)).toBeInTheDocument();
+  });
 });

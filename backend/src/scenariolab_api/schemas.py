@@ -11,6 +11,7 @@ from scenariolab_api.domain.models import (
     TurnConfiguration,
 )
 from scenariolab_api.engine.models import TurnResult
+from scenariolab_api.ai.models import BriefingResponse
 
 # JSON/JavaScript clients can round larger integers, which would break replay identity.
 SeedValue = Annotated[StrictInt, Field(ge=0, le=9_007_199_254_740_991)]
@@ -84,3 +85,25 @@ class GameTurnResponse(BaseModel):
     turn_result: TurnResult
     available_actions: tuple[ScenarioAction, ...]
     action_history: tuple[StableId, ...]
+
+
+class AIBriefingRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    scenario_id: StableId
+    scenario_version: ScenarioVersion
+    seed: SeedValue
+    action_history: tuple[StableId, ...] = Field(max_length=10_000)
+
+
+__all__ = [
+    "AIBriefingRequest",
+    "BriefingResponse",
+    "ErrorResponse",
+    "GameStartRequest",
+    "GameStartResponse",
+    "GameTurnRequest",
+    "GameTurnResponse",
+    "HealthResponse",
+    "ScenarioDisplayMetadata",
+]

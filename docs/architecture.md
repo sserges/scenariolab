@@ -26,20 +26,21 @@ React client
 FastAPI application layer
   DTO validation, deterministic replay, structured errors
        |
-       +---------------------> LLM adapter
-       |                         candidate JSON/text only
-       |                               |
-       |                         schema + semantic validation
-       |                               |
-       v                               v
-Deterministic Python engine <---- approved event/narrative inputs
-  scenario-agnostic validation, calculations, triggers, terminal state
+       v
+Deterministic Python engine
+  scenario-agnostic calculations, event selection, terminal state
        |
        v
-Outcome record + authoritative run state
+Immutable outcome record + authoritative run state
+       |
+       +---------------------> optional LLM adapter
+                                  bounded narrative JSON only
+                                           |
+                                  Pydantic validation or
+                                  deterministic fallback
 ```
 
-The engine has no dependency on FastAPI, React, an LLM SDK, or a specific scenario. It consumes validated domain objects and returns new state plus an outcome record. The application layer coordinates persistence and optional AI calls.
+The engine has no dependency on FastAPI, React, an LLM SDK, or a specific scenario. It consumes validated domain objects and returns new state plus an outcome record. The application layer coordinates optional AI calls only after an authoritative result exists; no provider output flows back into the engine.
 
 ## 3. `ScenarioDefinition` contract
 
@@ -298,6 +299,26 @@ The gameplay flow is scenario selection, explicit start, decision selection, con
 
 ## 6. AI boundary and fallback behavior
 
+### Grounded turn briefings (Brick 6)
+
+`POST /api/ai/briefing` is stateless and accepts only scenario ID/version, original seed, and a nonempty ordered action history. It resolves the currently registered playable definition, verifies the pinned version, initializes the deterministic engine, and replays the entire history. Invalid or terminal-overrun histories fail before any provider call. The final `TurnResult` is the sole source for the briefing context; browser-supplied metrics, status, event claims, and prose are never accepted.
+
+The application-owned `AIProvider` interface exposes `generate_briefing(context)`. Its first adapter uses the OpenAI-compatible Chat Completions HTTP contract and server-only configuration for API key, model, base URL, timeout, and output-token cap. No provider SDK types cross the adapter boundary, and the client cannot supply a URL or model. Game start and turn routes never resolve or call the provider.
+
+Grounding is divided explicitly:
+
+- **Established simulation facts:** scenario title/objective, completed/current turn, selected action, triggered event if present, exact recorded metric changes, current metric values, game status, and outcome reason.
+- **Narrative interpretation:** concise explanation and strategic framing that may describe only those facts.
+- **Hypothetical future:** a teaser using noncommittal language; it cannot state that an unselected future event occurred.
+
+The provider must return one JSON object with exactly `headline`, `situation_summary`, `consequence_explanation`, `strategic_insight`, and `next_turn_teaser`. Pydantic rejects missing/extra fields, empty or oversized strings, and control characters. Provider numeric claims are compared with numbers in the authoritative context; unsupported claims fail closed. React renders all fields as escaped text.
+
+Transport and cost controls are bounded: the provider response body is limited to 64 KiB, output tokens default to 500 and cannot exceed 800, timeout defaults to 10 seconds and cannot exceed 30, and there are no automatic retries. A 256-entry in-memory cache deduplicates successful live briefings for identical contexts. A per-process, per-caller rolling limit defaults to 20 provider attempts per minute; exceeding it uses fallback. Public multi-replica deployments still require shared edge rate limiting or authentication.
+
+Missing configuration, transport/timeout/HTTP/rate-limit failure, malformed or oversized JSON, schema rejection, and unsupported numbers all return deterministic text derived from the same engine context with `source: "fallback"`. Successful validated output returns `source: "live"`. Provider exceptions, response bodies, credentials, and stack traces are not returned. A full 12-turn Startup Survival run therefore makes at most 12 distinct briefing requests; actual billing depends on configured provider rates and the bounded input/output token counts.
+
+The frontend applies a successful turn response immediately, then starts the briefing request independently. It aborts the prior request and checks a monotonically increasing request version before rendering, preventing an older response from replacing a newer turn or surviving restart. AI failure displays a nonblocking message and leaves decisions enabled.
+
 ### Candidate scenario definitions
 
 Predefined and generated scenarios use the identical `ScenarioDefinition` schema. The future generation flow is:
@@ -322,9 +343,9 @@ The LLM receives a minimal, redacted state summary, permitted metric IDs, allowe
 
 The LLM receives the engine's outcome record and produces presentation text. Numeric claims must correspond to supplied values. The application may additionally verify mentioned numbers or use deterministic templates when the provider fails. Explanation generation never changes state.
 
-### Provider abstraction
+### Future provider operations
 
-Provider-specific SDK calls live behind an interface with operations such as `generate_event`, `generate_scenario_candidate`, and `explain_outcome`. Timeouts, retries, model identifiers, and credentials belong in server configuration. Tests use a deterministic fake provider.
+Future candidate-event and scenario-generation operations must remain behind separate application-owned interfaces and pass the full domain validation pipeline. Brick 6 implements narrative briefings only; it does not let the provider select random events or create authoritative effects.
 
 ### Fallback contract
 
@@ -355,7 +376,7 @@ Do not persist provider credentials, raw hidden prompts, or sensitive imported d
 - **UI tests:** server-state rendering, metric formatting, decision submission, duplicate prevention, event display, retry without state advance, restart, and terminal behavior.
 - **End-to-end tests:** 12 turns with a fake AI provider and with forced provider failure.
 
-## 9. Decisions deferred beyond Brick 5
+## 9. Decisions deferred beyond Brick 6
 
 - Balance validation for the illustrative Startup Survival values
 - Complete Cybersecurity Crisis and Space Colony definitions
@@ -363,7 +384,7 @@ Do not persist provider credentials, raw hidden prompts, or sensitive imported d
 - Browser save/resume and recovery of corrupt or incompatible saves
 - Server-side idempotency keys if a future stateful transport is introduced
 - Whether generated event content is persisted in full or by digest plus snapshot
-- The concrete LLM provider interface and initial provider
+- Shared distributed rate limiting, authentication, and provider observability
 - Hosting, authentication, server-side persistence, and observability
 - Supported PDF/document formats and URL-fetching security policy
 - Migration policy across scenario and save-schema versions

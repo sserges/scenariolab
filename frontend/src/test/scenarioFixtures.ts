@@ -1,4 +1,5 @@
 import type {
+  AIBriefingResponse,
   GameStartResponse,
   GameState,
   GameTurnResponse,
@@ -8,6 +9,21 @@ import type {
   ScenarioCatalogEntry,
   ScenarioDefinition,
 } from "../lib/api";
+
+export const liveBriefingFixture: AIBriefingResponse = {
+  source: "live",
+  headline: "Lean Operations Meet a Competitive Shock",
+  situation_summary: "The company tightened spending as market pressure intensified.",
+  consequence_explanation: "Cash and operating expenses decreased while team sentiment softened.",
+  strategic_insight: "Protect morale and customer trust while preserving the improved cost structure.",
+  next_turn_teaser: "A future turn may test whether the leaner plan can support renewed growth.",
+};
+
+export const fallbackBriefingFixture: AIBriefingResponse = {
+  ...liveBriefingFixture,
+  source: "fallback",
+  headline: "Competitor Price Cut Shapes the Latest Turn",
+};
 
 export const scenarioCatalogFixture: ScenarioCatalogEntry[] = [
   {
@@ -248,6 +264,27 @@ export const gameTurnFixture: GameTurnResponse = {
   },
   available_actions: startupActionsFixture,
   action_history: ["reduce-operating-expenses"],
+};
+
+export const secondGameTurnFixture: GameTurnResponse = {
+  ...gameTurnFixture,
+  state: {
+    ...nextState,
+    current_turn: 3,
+    decision_history: [firstDecision, { ...firstDecision, turn: 2, sequence: 2 }],
+  },
+  turn_result: {
+    ...gameTurnFixture.turn_result,
+    previous_state: nextState,
+    new_state: {
+      ...nextState,
+      current_turn: 3,
+      decision_history: [firstDecision, { ...firstDecision, turn: 2, sequence: 2 }],
+    },
+    completed_turn_index: 2,
+    triggered_event: null,
+  },
+  action_history: ["reduce-operating-expenses", "reduce-operating-expenses"],
 };
 
 const terminalState: GameState = {

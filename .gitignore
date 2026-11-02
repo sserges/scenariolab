@@ -11,6 +11,8 @@ coverage/
 playwright-report/
 test-results/
 blob-report/
+playwright-screenshots/
+playwright-traces/
 
 # Python caches, environments, and build output
 __pycache__/

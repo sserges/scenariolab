@@ -3,7 +3,9 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
+from scenariolab_api.ai import create_briefing_service
 from scenariolab_api.config import Settings, get_settings
+from scenariolab_api.routes.ai import router as ai_router
 from scenariolab_api.routes.games import router as games_router
 from scenariolab_api.routes.health import router as health_router
 from scenariolab_api.routes.scenarios import router as scenarios_router
@@ -16,6 +18,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         version="0.1.0",
     )
     app.state.settings = app_settings
+    app.state.briefing_service = create_briefing_service(app_settings)
     app.add_middleware(
         CORSMiddleware,
         allow_origins=[str(app_settings.frontend_origin).rstrip("/")],
@@ -42,6 +45,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(health_router)
     app.include_router(scenarios_router)
     app.include_router(games_router)
+    app.include_router(ai_router)
     return app
 
 

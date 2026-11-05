@@ -276,7 +276,7 @@ The pure engine exports `initialize_game(definition, seed)`, `get_available_acti
 9. Evaluate wins and turn-only fallback losses by priority, then enforce the absolute turn limit.
 10. Return `TurnResult` with the previous state, new state, selected action, optional event, eligible event IDs and draw, metric changes, completed turn, status, reason, and the appended decision record.
 
-Every accepted turn advances completion exactly once and appends exactly one record. The engine performs all work on local copies before constructing a new frozen state, so exceptions never partially mutate the caller's snapshot. HTTP revision checks, idempotency keys, and persistence remain application-layer work for a later brick.
+Every accepted turn advances completion exactly once and appends exactly one record. The engine performs all work on local copies before constructing a new frozen state, so exceptions never partially mutate the caller's snapshot. HTTP revision checks and idempotency keys remain application-layer work for a later brick; Brick 7 adds local replay-identity persistence without changing the engine.
 
 ### 5.1 Stateless game HTTP API
 
@@ -293,9 +293,33 @@ Business failures use `ErrorResponse` with `detail.code` and `detail.message`. U
 
 ### 5.2 Frontend authority boundary
 
-React keeps only the accepted scenario metadata, seed, action-ID history, last `TurnResult`, and latest server state needed to render the current page. It never calculates new game state. Metric cards iterate returned `MetricDefinition` values and use `format.style`, currency code, suffix, and `favorable_direction` for presentation. Money is divided by 100 only while formatting cents for display.
+React keeps the accepted scenario metadata, original seed, ordered action IDs, server-provided initial metric values, latest `GameState`, returned `DecisionRecord` history, and optional in-memory AI briefings needed to render the page. It never calculates new game state. Metric cards and charts iterate returned `MetricDefinition` values and use unit, format, currency code, suffix, decimals, and `favorable_direction` for presentation. Integer cents are divided by 100 only while formatting values for display.
 
 The gameplay flow is scenario selection, explicit start, decision selection, confirmation, result display, and either the next decision or a terminal restart. Network, structured API, and response-validation failures leave the last accepted session unchanged and expose retry. A synchronous request guard and disabled controls prevent duplicate submissions. Cybersecurity Crisis, Space Colony, and custom generation remain noninteractive planned content.
+
+### 5.3 Dashboard, history, and browser persistence (Brick 7)
+
+The dashboard is definition-driven. KPI cards use server-returned metric metadata and state. Reusable SVG trend charts group metrics by compatible unit and display the initial server state plus values reconstructed from ordered `DecisionRecord.metric_changes`. Unchanged metrics carry their last recorded value forward; the client does not infer intermediate points. Currency formatters divide integer cents by 100 for labels only. Axes, unit labels, series legends, accessible SVG names, and screen-reader value summaries accompany each chart. The same components work with other playable definitions without checking scenario IDs.
+
+`DecisionHistory` renders `GameState.decision_history` in backend order. It joins recorded `event_id` values to the validated scenario definition and formats each recorded metric change with its `MetricDefinition`. Per-turn AI briefing text may be shown as a separate explanation, but never replaces an event, metric, status, or outcome record. Rejected API decisions do not change state or create history rows.
+
+The terminal report reads the authoritative terminal state and final `DecisionRecord`. It presents the engine status and outcome reason, completed turn count, initial and final server metrics, presentation-only differences, the decision/event recap, and the final trend charts. It does not add a score or derive a new outcome.
+
+The MVP stores a single run in browser `localStorage` at key `scenariolab.saved-run`. The exact version-1 payload is:
+
+```json
+{
+  "format_version": 1,
+  "scenario_id": "startup-survival",
+  "scenario_version": "1.0.0",
+  "seed": 42,
+  "action_history": ["reduce-operating-expenses"]
+}
+```
+
+Runtime validation requires those fields and stable action/scenario IDs; unknown fields, unsupported save formats, invalid seeds, malformed JSON, and oversized values are rejected. No metrics, status, events, AI narrative, API keys, or provider configuration are stored. A successful fresh start writes an empty action history; each successful turn writes the returned action history. Failed turns do not write, so the last accepted save remains intact.
+
+Continue does not trust cached values. The client requests `/api/games/start` with the original seed, verifies the current scenario version, and sends each saved action in order through `/api/games/turn`, using the backend-returned action history for the next replay. The final server response supplies current metrics, history, available decisions, and terminal status. A version mismatch or invalid replay leaves the save unchanged and requires the player to clear it or start a new run. Resuming historical turns does not request AI briefings; a new briefing is requested only after a new accepted decision. When `localStorage` is unavailable, gameplay continues with a visible notice and no saved progress. Saves are local to one browser profile and have no cross-device sync or automatic schema migration.
 
 ## 6. AI boundary and fallback behavior
 
@@ -376,12 +400,12 @@ Do not persist provider credentials, raw hidden prompts, or sensitive imported d
 - **UI tests:** server-state rendering, metric formatting, decision submission, duplicate prevention, event display, retry without state advance, restart, and terminal behavior.
 - **End-to-end tests:** 12 turns with a fake AI provider and with forced provider failure.
 
-## 9. Decisions deferred beyond Brick 6
+## 9. Decisions deferred beyond Brick 7
 
 - Balance validation for the illustrative Startup Survival values
 - Complete Cybersecurity Crisis and Space Colony definitions
 - Generated TypeScript types versus the current hand-validated API view models
-- Browser save/resume and recovery of corrupt or incompatible saves
+- Cross-device save synchronization and automatic save-schema migration
 - Server-side idempotency keys if a future stateful transport is introduced
 - Whether generated event content is persisted in full or by digest plus snapshot
 - Shared distributed rate limiting, authentication, and provider observability

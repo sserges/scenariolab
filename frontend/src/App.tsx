@@ -3,11 +3,28 @@ import { useState } from "react";
 import { ApiStatus } from "./components/ApiStatus";
 import { GameplayScreen } from "./components/GameplayScreen";
 import { ScenarioCatalog } from "./components/ScenarioCatalog";
-import type { ScenarioCatalogEntry } from "./lib/api";
+import type { ScenarioCatalogEntry, ScenarioDefinition } from "./lib/api";
+import { clearSavedRun, readSavedRun } from "./lib/savedRun";
+import type { SaveReadResult, SavedRun } from "./lib/savedRun";
+
+interface SelectedScenario {
+  entry: ScenarioCatalogEntry;
+  definition: ScenarioDefinition;
+  resumeSave: SavedRun | null;
+}
 
 export function App() {
-  const [selectedScenario, setSelectedScenario] =
-    useState<ScenarioCatalogEntry | null>(null);
+  const [selectedScenario, setSelectedScenario] = useState<SelectedScenario | null>(null);
+  const [saveState, setSaveState] = useState<SaveReadResult>(() => readSavedRun());
+
+  function clearProgress() {
+    setSaveState(clearSavedRun() ? { status: "missing" } : { status: "unavailable" });
+  }
+
+  function returnToCatalog() {
+    setSelectedScenario(null);
+    setSaveState(readSavedRun());
+  }
 
   return (
     <div className="min-h-screen overflow-hidden bg-slate-950 text-slate-100">
@@ -68,7 +85,17 @@ export function App() {
                 <p className="text-sm text-slate-500">3 official scenarios</p>
               </div>
 
-              <ScenarioCatalog onOpenScenario={setSelectedScenario} />
+              <ScenarioCatalog
+                onClearSavedRun={clearProgress}
+                onOpenScenario={(entry, definition, resumeSave) =>
+                  setSelectedScenario({
+                    entry,
+                    definition,
+                    resumeSave: resumeSave ?? null,
+                  })
+                }
+                saveState={saveState}
+              />
 
               <article className="mt-5 rounded-3xl border border-dashed border-white/15 bg-white/[0.025] p-7">
                 <div className="flex flex-col gap-6 sm:flex-row sm:items-center sm:justify-between">
@@ -97,8 +124,11 @@ export function App() {
           </>
         ) : (
           <GameplayScreen
-            catalogEntry={selectedScenario}
-            onBack={() => setSelectedScenario(null)}
+            catalogEntry={selectedScenario.entry}
+            onBack={returnToCatalog}
+            onSaveStateChange={setSaveState}
+            resumeSave={selectedScenario.resumeSave}
+            scenarioDefinition={selectedScenario.definition}
           />
         )}
       </main>

@@ -11,8 +11,9 @@ The official Devpost deadline is confirmed as November 27, 2026 at 5:00 PM EST. 
 - ✅ **Brick 3 — Complete:** immutable Pydantic domain models, semantic validation, the Startup Survival definition, three-entry catalog, initial game state, scenario APIs, and catalog-driven frontend are verified.
 - ✅ **Brick 4 — Complete:** pure deterministic turn resolution, recurring calculations, seeded predefined events, immutable outcome history, terminal evaluation, and generic-resource behavior are verified.
 - ✅ **Brick 5 — Complete:** stateless replay-backed game APIs and a tested responsive Startup Survival browser flow are verified; planned scenarios remain unavailable.
-- 🟨 **Brick 6 — Implemented, live verification pending:** OpenAI-compatible provider configuration, stateless grounded briefings, strict output validation, deterministic fallback, independent frontend loading, cost guards, and mocked failure coverage are verified. A credentialed provider smoke test remains required before the brick receives a green completion mark. Brick 7 has not started.
-- ✅ **Playwright E2E setup — Complete:** Playwright 1.64.1 and Chromium are configured with isolated FastAPI/Vite startup, protected AI-route mocking, deterministic real-engine gameplay, mobile coverage, failure artifacts, seven passing headless journeys, and a passing headed smoke test. Future save/resume and ending-report journeys remain gated on those product features.
+- ✅ **Brick 6 — Complete:** OpenAI-compatible provider configuration, stateless grounded briefings, strict output validation, deterministic fallback, independent frontend loading, cost guards, and mocked failure coverage are verified. A single credentialed live-provider smoke test passed with the configured `gpt-4.1-mini` model.
+- ✅ **Brick 7 — Complete:** Responsive scenario-driven dashboard, metadata-formatted KPI cards and accessible trend charts, authoritative decision/event history, versioned local save/resume through backend replay, terminal report, and AI briefing presentation are implemented and verified. Automated AI briefings remain mocked.
+- ✅ **Playwright E2E setup — Complete:** Playwright 1.64.1 and Chromium use isolated FastAPI/Vite startup on dedicated ports, protected AI-route mocking, deterministic real-engine gameplay, desktop/mobile coverage, save/resume after reload, terminal restoration/restart, and final-report journeys.
 
 ## Daily milestones
 
@@ -30,19 +31,19 @@ The official Devpost deadline is confirmed as November 27, 2026 at 5:00 PM EST. 
 | Nov 7 | ✅ Complete | Add engine outcome records and terminal evaluation | Every transition is auditable; win/loss/turn-limit cases are tested |
 | Nov 8 | ✅ Complete | Build app shell and core responsive gameplay layout | Navigation, scenario header, turn indicator, and empty/loading/error states render |
 | Nov 9 | ✅ Complete | Build decision-card interaction | Allowed decisions display and submit once; disabled and rejected states are clear |
-| Nov 10 | ⬜ Upcoming | Build metrics and resource dashboard | Units, bounds, capacity, and deltas display from server-returned state |
-| Nov 11 | ⬜ Upcoming | Add Recharts trends | Metric history charts are readable, responsive, and accessible without color alone |
-| Nov 12 | ⬜ Upcoming | Add decision and event history | Ordered audit trail matches engine outcomes and survives page navigation |
-| Nov 13 | ⬜ Upcoming | Add `localStorage` save/resume/restart | Versioned saves restore safely; corrupt or incompatible saves fail gracefully |
+| Nov 10 | ✅ Complete | Build responsive metrics and resource dashboard | Metadata-driven KPI cards show server values, units, and favorable-direction deltas |
+| Nov 11 | ✅ Complete | Add reusable metric trend charts | Accessible SVG charts show initial and recorded turn values without inferred data or new dependencies |
+| Nov 12 | ✅ Complete | Add decision and event history | Ordered timeline displays accepted decisions, authoritative events, metric changes, status, and separate briefing text |
+| Nov 13 | ✅ Complete | Add versioned `localStorage` save/resume/restart | Exact replay identity is saved; resume validates scenario version and reconstructs through stateless endpoints |
 | Nov 14 | ✅ Complete | Introduce configurable LLM provider interface | Provider config stays server-side; mocked provider and deterministic fallback tests pass |
 | Nov 15 | ⬜ Upcoming | Generate and validate AI event candidates | Invalid, unsafe, late, and out-of-contract responses are rejected |
-| Nov 16 | ✅ Automated verification complete; 🟨 live smoke pending | Generate grounded turn narratives | Stateless replay grounds validated briefings; real-provider smoke awaits credentials and authorization |
-| Nov 17 | ⬜ Upcoming | Complete full 12-turn Startup Survival loop | A player can start, play, save, resume, and reach an ending without AI access |
-| Nov 18 | ⬜ Upcoming | Build ending report | Report summarizes result, metric trends, pivotal decisions, and event history |
-| Nov 19 | ⬜ Upcoming | MVP integration and failure-mode pass | Provider timeout, malformed output, refresh, duplicate action, and API errors tested |
-| Nov 20 | ⬜ Upcoming | Accessibility and responsive usability pass | Keyboard flow, focus, labels, contrast, mobile, and reduced-motion issues addressed |
-| Nov 21 | ⬜ Upcoming | Expand Pytest and Vitest coverage | Critical engine invariants and UI state branches have meaningful assertions |
-| Nov 22 | 🟨 Foundation complete; future-feature journeys pending | Complete Playwright critical journeys | Homepage, gameplay, three-turn event, terminal/restart, API failure, duplicate prevention, mocked AI, and mobile journeys pass; save/resume and ending-report coverage await implementation |
+| Nov 16 | ✅ Complete | Generate grounded turn narratives | Stateless replay grounds validated briefings; one live configured-provider smoke request returned a validated briefing |
+| Nov 17 | ✅ Complete | Complete full 12-turn Startup Survival loop | Browser run reaches an engine-defined terminal state; saved action history restores the same result |
+| Nov 18 | ✅ Complete | Build ending report | Terminal report shows authoritative reason, turns, initial/final metrics, decision/event recap, and final trends |
+| Nov 19 | ✅ Complete | MVP integration and failure-mode pass | Rejected turns preserve the accepted state/save; storage, corrupt save, incompatible version, and AI failure paths are covered |
+| Nov 20 | ✅ Complete | Accessibility and responsive usability pass | Keyboard controls, focus indicators, announcements, chart alternatives, contrast, mobile layout, and overflow are reviewed |
+| Nov 21 | ✅ Complete | Expand Pytest and Vitest coverage | Backend and frontend suites pass; charts, persistence, replay, and report behavior have direct assertions |
+| Nov 22 | ✅ Complete | Complete Playwright critical journeys | Dedicated-port Chromium suite passes dashboard, three-turn history/charts, reload/resume, terminal restoration/restart, mocked AI, and mobile checks |
 | Nov 23 | ⬜ Upcoming | Stretch spike: prompt-to-scenario generation | Timeboxed validated prototype or documented deferral; MVP remains unchanged |
 | Nov 24 | ⬜ Upcoming | Stretch spike: PDF/document/URL ingestion | Timeboxed provenance and injection-resistant pipeline prototype or deferral |
 | Nov 25 | ⬜ Upcoming | **Internal submission:** release candidate and demo freeze | Clean-machine runbook, demo script, compliance checklist, and RC tag candidate ready |

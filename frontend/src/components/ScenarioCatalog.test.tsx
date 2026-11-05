@@ -1,10 +1,11 @@
-import { fireEvent, render, screen, within } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { expect, test, vi } from "vitest";
 
 import {
   scenarioCatalogFixture,
   startupDefinitionFixture,
 } from "../test/scenarioFixtures";
+import { SAVE_FORMAT_VERSION, type SavedRun } from "../lib/savedRun";
 import { ScenarioCatalog } from "./ScenarioCatalog";
 
 function jsonResponse(body: unknown): Response {
@@ -78,4 +79,67 @@ test("loads the available Startup Survival definition without starting gameplay"
 
   expect(await screen.findByText("Definition validated")).toBeInTheDocument();
   expect(screen.getByText("Ready for deterministic browser play.")).toBeInTheDocument();
+});
+
+test("offers saved progress and opens it only after current definition validation", async () => {
+  const savedRun: SavedRun = {
+    format_version: SAVE_FORMAT_VERSION,
+    scenario_id: "startup-survival",
+    scenario_version: "1.0.0",
+    seed: 42,
+    action_history: ["reduce-operating-expenses"],
+  };
+  const onOpenScenario = vi.fn();
+  vi.stubGlobal(
+    "fetch",
+    vi
+      .fn()
+      .mockResolvedValueOnce(jsonResponse(scenarioCatalogFixture))
+      .mockResolvedValueOnce(jsonResponse(startupDefinitionFixture)),
+  );
+
+  render(
+    <ScenarioCatalog
+      onOpenScenario={onOpenScenario}
+      saveState={{ status: "valid", save: savedRun }}
+    />,
+  );
+  fireEvent.click(await screen.findByRole("button", { name: "Continue Saved Game" }));
+
+  await waitFor(() => {
+    expect(onOpenScenario).toHaveBeenCalledWith(
+      scenarioCatalogFixture[0],
+      startupDefinitionFixture,
+      savedRun,
+    );
+  });
+});
+
+test("keeps incompatible saves and offers an explicit new game path", async () => {
+  const savedRun: SavedRun = {
+    format_version: SAVE_FORMAT_VERSION,
+    scenario_id: "startup-survival",
+    scenario_version: "0.9.0",
+    seed: 42,
+    action_history: [],
+  };
+  const onOpenScenario = vi.fn();
+  vi.stubGlobal(
+    "fetch",
+    vi
+      .fn()
+      .mockResolvedValueOnce(jsonResponse(scenarioCatalogFixture))
+      .mockResolvedValueOnce(jsonResponse(startupDefinitionFixture)),
+  );
+  render(
+    <ScenarioCatalog
+      onOpenScenario={onOpenScenario}
+      saveState={{ status: "valid", save: savedRun }}
+    />,
+  );
+
+  fireEvent.click(await screen.findByRole("button", { name: "Continue Saved Game" }));
+  expect(await screen.findByRole("alert")).toHaveTextContent(/incompatible/i);
+  expect(onOpenScenario).not.toHaveBeenCalled();
+  expect(screen.getByRole("button", { name: "New Game" })).toBeEnabled();
 });

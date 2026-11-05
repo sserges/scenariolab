@@ -3,7 +3,7 @@ import { fileURLToPath } from "node:url";
 import { defineConfig, devices } from "@playwright/test";
 
 const frontendDirectory = fileURLToPath(new URL(".", import.meta.url));
-const backendDirectory = fileURLToPath(new URL("../backend/", import.meta.url));
+const repositoryDirectory = fileURLToPath(new URL("../", import.meta.url));
 const frontendUrl = "http://127.0.0.1:5174";
 const backendUrl = "http://127.0.0.1:8010";
 const isCI = Boolean(process.env.CI);
@@ -40,8 +40,8 @@ export default defineConfig({
   ],
   webServer: [
     {
-      command: "uv run uvicorn scenariolab_api.main:app --host 127.0.0.1 --port 8010",
-      cwd: backendDirectory,
+      command: "uv run --project backend --no-sync uvicorn scenariolab_api.main:app --host 127.0.0.1 --port 8010",
+      cwd: repositoryDirectory,
       env: {
         ...process.env,
         // Defense in depth: the E2E backend can never initialize a live provider.

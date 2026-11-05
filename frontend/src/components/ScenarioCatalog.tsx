@@ -6,6 +6,7 @@ import {
   type ScenarioCatalogEntry,
   type ScenarioDefinition,
 } from "../lib/api";
+import type { SaveReadResult, SavedRun } from "../lib/savedRun";
 
 type CatalogState =
   | { status: "loading" }
@@ -42,7 +43,7 @@ function ScenarioCard({
   onOpenScenario,
 }: {
   scenario: ScenarioCatalogEntry;
-  onOpenScenario: ((scenario: ScenarioCatalogEntry) => void) | undefined;
+  onOpenScenario: ((scenario: ScenarioCatalogEntry, definition: ScenarioDefinition) => void) | undefined;
 }) {
   const [detailState, setDetailState] = useState<DetailState>({ status: "idle" });
   const isAvailable = scenario.availability === "available";
@@ -137,7 +138,7 @@ function ScenarioCard({
               {onOpenScenario !== undefined && (
                 <button
                   className="mt-4 rounded-xl bg-teal-300 px-4 py-2 font-bold text-slate-950 transition-colors hover:bg-teal-200"
-                  onClick={() => onOpenScenario(scenario)}
+                  onClick={() => onOpenScenario(scenario, detailState.definition)}
                   type="button"
                 >
                   Open Simulation
@@ -158,8 +159,12 @@ function ScenarioCard({
 
 export function ScenarioCatalog({
   onOpenScenario,
+  saveState = { status: "missing" },
+  onClearSavedRun,
 }: {
-  onOpenScenario?: (scenario: ScenarioCatalogEntry) => void;
+  onOpenScenario?: (scenario: ScenarioCatalogEntry, definition: ScenarioDefinition, resumeSave?: SavedRun) => void;
+  saveState?: SaveReadResult;
+  onClearSavedRun?: () => void;
 }) {
   const [catalogState, setCatalogState] = useState<CatalogState>({
     status: "loading",
@@ -214,14 +219,140 @@ export function ScenarioCatalog({
   }
 
   return (
-    <div className="mt-7 grid gap-5 md:grid-cols-2 xl:grid-cols-3">
-      {catalogState.scenarios.map((scenario) => (
-        <ScenarioCard
-          key={scenario.scenario_id}
+    <div className="mt-7 space-y-5">
+      {saveState.status === "valid" && onOpenScenario !== undefined && (
+        <SavedRunPanel
+          {...(onClearSavedRun === undefined ? {} : { onClear: onClearSavedRun })}
           onOpenScenario={onOpenScenario}
-          scenario={scenario}
+          save={saveState.save}
+          scenarios={catalogState.scenarios}
         />
-      ))}
+      )}
+      {saveState.status === "invalid" && (
+        <div className="flex flex-col gap-4 rounded-2xl border border-amber-300/20 bg-amber-300/5 p-5 sm:flex-row sm:items-center sm:justify-between" role="alert">
+          <div>
+            <p className="font-semibold text-amber-100">Saved progress could not be read</p>
+            <p className="mt-1 text-sm leading-6 text-slate-300">
+              The save is left untouched. Clear it to start a fresh run on this device.
+            </p>
+          </div>
+          {onClearSavedRun !== undefined && (
+            <button className="rounded-xl border border-amber-200/20 px-4 py-2 text-sm font-bold text-amber-100 hover:bg-amber-200/10" onClick={onClearSavedRun} type="button">
+              Clear Saved Progress
+            </button>
+          )}
+        </div>
+      )}
+      {saveState.status === "unavailable" && (
+        <p className="rounded-2xl border border-amber-300/20 bg-amber-300/5 p-5 text-sm leading-6 text-amber-100" role="status">
+          Local progress storage is unavailable. You can play, but this run will not be saved on this device.
+        </p>
+      )}
+      <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
+        {catalogState.scenarios.map((scenario) => (
+          <ScenarioCard
+            key={scenario.scenario_id}
+            onOpenScenario={onOpenScenario}
+            scenario={scenario}
+          />
+        ))}
+      </div>
     </div>
+  );
+}
+
+function SavedRunPanel({
+  onClear,
+  onOpenScenario,
+  save,
+  scenarios,
+}: {
+  onClear?: () => void;
+  onOpenScenario: (scenario: ScenarioCatalogEntry, definition: ScenarioDefinition, resumeSave?: SavedRun) => void;
+  save: SavedRun;
+  scenarios: ScenarioCatalogEntry[];
+}) {
+  const [busy, setBusy] = useState<"continue" | "new" | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const scenario = scenarios.find((item) => item.scenario_id === save.scenario_id);
+
+  async function openSavedScenario(mode: "continue" | "new") {
+    if (busy !== null) {
+      return;
+    }
+    if (scenario === undefined || scenario.availability !== "available") {
+      setError("The saved scenario is no longer available. Its progress has been preserved.");
+      return;
+    }
+    setBusy(mode);
+    setError(null);
+    try {
+      const definition = await getScenarioDefinition(scenario.scenario_id);
+      if (mode === "continue" && definition.version !== save.scenario_version) {
+        setError(
+          `Saved version ${save.scenario_version} is incompatible with available version ${definition.version}. Clear the save or start a new game.`,
+        );
+        return;
+      }
+      if (mode === "continue") {
+        onOpenScenario(scenario, definition, save);
+      } else {
+        onOpenScenario(scenario, definition);
+      }
+    } catch {
+      setError("Scenario details are unavailable. Saved progress has not changed.");
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  return (
+    <section aria-labelledby="saved-run-heading" className="rounded-3xl border border-teal-300/20 bg-teal-300/[0.06] p-5 sm:p-6">
+      <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
+        <div>
+          <p className="text-xs font-bold uppercase tracking-wider text-teal-200">Saved on this device</p>
+          <h3 className="mt-1 text-xl font-bold text-white" id="saved-run-heading">
+            Continue {scenario?.title ?? save.scenario_id}
+          </h3>
+          <p className="mt-1 text-sm text-slate-300">
+            {save.action_history.length} completed {save.action_history.length === 1 ? "decision" : "decisions"} · scenario version {save.scenario_version}
+          </p>
+          <p className="mt-1 text-xs leading-5 text-slate-400">
+            Resume rebuilds the run from its seed and ordered decisions through the game API.
+          </p>
+        </div>
+        <div className="flex flex-wrap gap-3">
+          <button
+            className="rounded-xl bg-teal-300 px-4 py-3 text-sm font-bold text-slate-950 hover:bg-teal-200 disabled:cursor-wait disabled:opacity-60"
+            disabled={busy !== null}
+            onClick={() => void openSavedScenario("continue")}
+            type="button"
+          >
+            {busy === "continue" ? "Loading Saved Run…" : "Continue Saved Game"}
+          </button>
+          {scenario?.availability === "available" && (
+            <button
+              className="rounded-xl border border-white/15 px-4 py-3 text-sm font-bold text-white hover:bg-white/5 disabled:cursor-wait disabled:opacity-60"
+              disabled={busy !== null}
+              onClick={() => void openSavedScenario("new")}
+              type="button"
+            >
+              {busy === "new" ? "Loading Scenario…" : "New Game"}
+            </button>
+          )}
+          {onClear !== undefined && (
+            <button
+              className="rounded-xl border border-white/10 px-4 py-3 text-sm font-semibold text-slate-300 hover:bg-white/5"
+              disabled={busy !== null}
+              onClick={onClear}
+              type="button"
+            >
+              Clear Saved Progress
+            </button>
+          )}
+        </div>
+      </div>
+      {error !== null && <p className="mt-4 text-sm leading-6 text-amber-100" role="alert">{error}</p>}
+    </section>
   );
 }

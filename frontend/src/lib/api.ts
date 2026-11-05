@@ -57,8 +57,18 @@ export interface ScenarioDefinition {
     objective: string;
     disclaimer: string;
   };
+  initial_state: Record<string, number>;
   turn: TurnConfiguration;
-  metrics: Array<{ metric_id: string; title: string }>;
+  metrics: MetricDefinition[];
+  events: ScenarioEvent[];
+  win_conditions: OutcomeConditionSummary[];
+  loss_conditions: OutcomeConditionSummary[];
+}
+
+export interface OutcomeConditionSummary {
+  condition_id: string;
+  title: string;
+  description: string;
 }
 
 export interface ScenarioAction {
@@ -333,13 +343,24 @@ function isScenarioDefinition(value: unknown): value is ScenarioDefinition {
     typeof value.category === "string" &&
     typeof value.metadata.objective === "string" &&
     typeof value.metadata.disclaimer === "string" &&
+    isIntegerRecord(value.initial_state) &&
     Array.isArray(value.metrics) &&
-    value.metrics.every(
-      (metric) =>
-        isRecord(metric) &&
-        typeof metric.metric_id === "string" &&
-        typeof metric.title === "string",
-    )
+    value.metrics.every(isMetricDefinition) &&
+    Array.isArray(value.events) &&
+    value.events.every(isScenarioEvent) &&
+    Array.isArray(value.win_conditions) &&
+    value.win_conditions.every(isOutcomeConditionSummary) &&
+    Array.isArray(value.loss_conditions) &&
+    value.loss_conditions.every(isOutcomeConditionSummary)
+  );
+}
+
+function isOutcomeConditionSummary(value: unknown): value is OutcomeConditionSummary {
+  return (
+    isRecord(value) &&
+    typeof value.condition_id === "string" &&
+    typeof value.title === "string" &&
+    typeof value.description === "string"
   );
 }
 

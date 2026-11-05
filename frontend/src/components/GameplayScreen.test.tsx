@@ -8,25 +8,89 @@ import {
   liveBriefingFixture,
   scenarioCatalogFixture,
   secondGameTurnFixture,
+  startupActionsFixture,
+  startupDefinitionFixture,
   terminalTurnFixture,
 } from "../test/scenarioFixtures";
 import { GameplayScreen } from "./GameplayScreen";
+import { SAVE_FORMAT_VERSION, SAVE_STORAGE_KEY, type SavedRun } from "../lib/savedRun";
 
 function jsonResponse(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), { status });
 }
 
-function renderGameplay() {
+function renderGameplay(resumeSave: {
+  format_version: 1;
+  scenario_id: string;
+  scenario_version: string;
+  seed: number;
+  action_history: string[];
+} | null = null) {
   const startup = scenarioCatalogFixture[0];
   if (startup === undefined) {
     throw new Error("Startup fixture is missing");
   }
-  render(<GameplayScreen catalogEntry={startup} onBack={vi.fn()} />);
+  render(
+    <GameplayScreen
+      catalogEntry={startup}
+      onBack={vi.fn()}
+      resumeSave={resumeSave}
+      scenarioDefinition={startupDefinitionFixture}
+    />,
+  );
 }
 
+function terminalReplayFixture(actionCount: number) {
+  const history = terminalTurnFixture.state.decision_history.slice(0, actionCount);
+  const isTerminal = actionCount === terminalTurnFixture.action_history.length;
+  const state = {
+    ...terminalTurnFixture.state,
+    current_turn: isTerminal ? actionCount : actionCount + 1,
+    status: isTerminal ? "won" as const : "active" as const,
+    decision_history: history,
+  };
+  const previousHistory = terminalTurnFixture.state.decision_history.slice(0, actionCount - 1);
+  const previousState = actionCount === 1
+    ? gameStartFixture.state
+    : {
+        ...state,
+        current_turn: actionCount,
+        status: "active" as const,
+        decision_history: previousHistory,
+      };
+  const latestRecord = history.at(-1);
+  const action = startupActionsFixture.find((item) => item.action_id === latestRecord?.action_id);
+  if (latestRecord === undefined || action === undefined) {
+    throw new Error("Terminal replay fixture is incomplete");
+  }
+  return {
+    ...terminalTurnFixture,
+    state,
+    action_history: terminalTurnFixture.action_history.slice(0, actionCount),
+    available_actions: isTerminal ? [] : gameStartFixture.available_actions,
+    turn_result: {
+      ...terminalTurnFixture.turn_result,
+      previous_state: previousState,
+      new_state: state,
+      selected_action: action,
+      completed_turn_index: actionCount,
+      resulting_status: state.status,
+      outcome_reason: latestRecord.outcome_reason,
+    },
+  };
+}
+
+const oneTurnSave: SavedRun = {
+  format_version: SAVE_FORMAT_VERSION,
+  scenario_id: "startup-survival",
+  scenario_version: "1.0.0",
+  seed: 42,
+  action_history: ["reduce-operating-expenses"],
+};
+
 async function startSimulation() {
-  fireEvent.click(screen.getByRole("button", { name: "Start Simulation" }));
-  await screen.findByText("Company metrics");
+  fireEvent.click(screen.getByRole("button", { name: "Start New Game" }));
+  await screen.findByText("Key metrics");
 }
 
 test("starts a simulation and renders initial generic metrics and decisions", async () => {
@@ -41,13 +105,13 @@ test("starts a simulation and renders initial generic metrics and decisions", as
   await startSimulation();
 
   expect(screen.getByText("Month 1 of 12")).toBeInTheDocument();
-  expect(screen.getByText("$150,000")).toBeInTheDocument();
+  expect(screen.getByLabelText("Cash: $150,000")).toBeInTheDocument();
   expect(screen.getByText("$15,000")).toBeInTheDocument();
   expect(screen.getByText("$45,000")).toBeInTheDocument();
-  expect(screen.getByText("2,000")).toBeInTheDocument();
-  expect(screen.getByText("12")).toBeInTheDocument();
-  expect(screen.getByText("82/100")).toBeInTheDocument();
-  expect(screen.getByText("75/100")).toBeInTheDocument();
+  expect(document.querySelector('[data-metric-id="active-users"]')).toHaveTextContent("2,000");
+  expect(document.querySelector('[data-metric-id="employees"]')).toHaveTextContent("12");
+  expect(document.querySelector('[data-metric-id="customer-satisfaction"]')).toHaveTextContent("82/100");
+  expect(document.querySelector('[data-metric-id="team-morale"]')).toHaveTextContent("75/100");
   expect(screen.getByRole("radio", { name: /Invest in Marketing/ })).toBeEnabled();
   expect(screen.getByRole("radio", { name: /Improve the Product/ })).toBeEnabled();
   expect(screen.getByRole("radio", { name: /Reduce Operating Expenses/ })).toBeEnabled();
@@ -67,19 +131,20 @@ test("submits a selected decision and renders only server-returned results and e
   fireEvent.click(screen.getByRole("radio", { name: /Reduce Operating Expenses/ }));
   fireEvent.click(screen.getByRole("button", { name: "Confirm Decision" }));
 
-  expect(await screen.findByText("$127,500")).toBeInTheDocument();
+  expect(await screen.findByLabelText("Cash: $127,500")).toBeInTheDocument();
   expect(screen.getByText("Month 1 resolved")).toBeInTheDocument();
-  expect(screen.getByText("Competitor Price Cut")).toBeInTheDocument();
+  expect(screen.getAllByText("Competitor Price Cut").length).toBeGreaterThan(0);
   expect(
-    screen.getByText("A competitor lowers prices and pressures customer sentiment."),
-  ).toBeInTheDocument();
+    screen.getAllByText("A competitor lowers prices and pressures customer sentiment.").length,
+  ).toBeGreaterThan(0);
   expect(screen.getByText("Decrease −$22,500 · unfavorable")).toBeInTheDocument();
   expect(screen.getByText("Decrease −$7,500 · favorable")).toBeInTheDocument();
   const revenueCard = document.querySelector('[data-metric-id="monthly-revenue"]');
   expect(revenueCard).toHaveAttribute("data-change", "unchanged");
   expect(revenueCard).toHaveTextContent("No change");
-  expect(await screen.findByText(liveBriefingFixture.headline)).toBeInTheDocument();
-  expect(screen.getByText("Live AI")).toBeInTheDocument();
+  expect((await screen.findAllByText(liveBriefingFixture.headline)).length).toBeGreaterThan(0);
+  expect(screen.getAllByText("Live AI").length).toBeGreaterThan(0);
+  expect(JSON.parse(localStorage.getItem(SAVE_STORAGE_KEY) ?? "{}")).toEqual(oneTurnSave);
 
   const request = JSON.parse(String(fetchMock.mock.calls[1]?.[1]?.body)) as Record<string, unknown>;
   expect(request).toMatchObject({
@@ -101,15 +166,18 @@ test("keeps current state after a failed turn and offers a retry", async () => {
   vi.stubGlobal("fetch", fetchMock);
   renderGameplay();
   await startSimulation();
+  const savedBeforeRejectedTurn = localStorage.getItem(SAVE_STORAGE_KEY);
 
   fireEvent.click(screen.getByRole("radio", { name: /Reduce Operating Expenses/ }));
   fireEvent.click(screen.getByRole("button", { name: "Confirm Decision" }));
 
   expect(await screen.findByText("Simulation request failed")).toBeInTheDocument();
   expect(screen.getByText(/Could not reach the ScenarioLab API/)).toBeInTheDocument();
-  expect(screen.getByText("$150,000")).toBeInTheDocument();
+  expect(screen.getByLabelText("Cash: $150,000")).toBeInTheDocument();
+  expect(JSON.parse(savedBeforeRejectedTurn ?? "{}")).toMatchObject({ action_history: [] });
+  expect(localStorage.getItem(SAVE_STORAGE_KEY)).toBe(savedBeforeRejectedTurn);
   fireEvent.click(screen.getByRole("button", { name: "Try Again" }));
-  expect(await screen.findByText("$127,500")).toBeInTheDocument();
+  expect(await screen.findByLabelText("Cash: $127,500")).toBeInTheDocument();
 });
 
 test("prevents duplicate turn submissions while a request is pending", async () => {
@@ -134,7 +202,7 @@ test("prevents duplicate turn submissions while a request is pending", async () 
   expect(fetchMock).toHaveBeenCalledTimes(2);
   expect(screen.getByRole("button", { name: "Resolving Decision…" })).toBeDisabled();
   resolveTurn?.(jsonResponse(gameTurnFixture));
-  await screen.findByText(liveBriefingFixture.headline);
+  await screen.findAllByText(liveBriefingFixture.headline);
   expect(
     fetchMock.mock.calls.filter(([url]) => String(url).endsWith("/api/ai/briefing")),
   ).toHaveLength(1);
@@ -155,13 +223,18 @@ test("renders terminal victory, disables decisions, and restarts with fresh stat
   fireEvent.click(screen.getByRole("button", { name: "Confirm Decision" }));
 
   expect(await screen.findByRole("heading", { name: "Victory" })).toBeInTheDocument();
-  expect(screen.getByText("Outcome: Survived The Year")).toBeInTheDocument();
+  expect(screen.getByText("Outcome: The Startup Survived")).toBeInTheDocument();
   expect(screen.queryByRole("button", { name: "Confirm Decision" })).not.toBeInTheDocument();
   fireEvent.click(screen.getByRole("button", { name: "Restart Simulation" }));
 
   await waitFor(() => expect(screen.getByText("Seed 77")).toBeInTheDocument());
-  expect(screen.getByText("$150,000")).toBeInTheDocument();
+  expect(screen.getByLabelText("Cash: $150,000")).toBeInTheDocument();
   expect(screen.getByText("Month 1 of 12")).toBeInTheDocument();
+  expect(JSON.parse(localStorage.getItem(SAVE_STORAGE_KEY) ?? "{}")).toEqual({
+    ...oneTurnSave,
+    seed: 77,
+    action_history: [],
+  });
 });
 
 test("shows a retryable error when the start request fails", async () => {
@@ -172,11 +245,11 @@ test("shows a retryable error when the start request fails", async () => {
   vi.stubGlobal("fetch", fetchMock);
   renderGameplay();
 
-  fireEvent.click(screen.getByRole("button", { name: "Start Simulation" }));
+  fireEvent.click(screen.getByRole("button", { name: "Start New Game" }));
   expect(await screen.findByText("Simulation request failed")).toBeInTheDocument();
   fireEvent.click(screen.getByRole("button", { name: "Try Again" }));
 
-  expect(await screen.findByText("Company metrics")).toBeInTheDocument();
+  expect(await screen.findByText("Key metrics")).toBeInTheDocument();
   expect(fetchMock).toHaveBeenCalledTimes(2);
 });
 
@@ -187,11 +260,11 @@ test("rejects unexpected start response data instead of rendering it", async () 
   );
   renderGameplay();
 
-  fireEvent.click(screen.getByRole("button", { name: "Start Simulation" }));
+  fireEvent.click(screen.getByRole("button", { name: "Start New Game" }));
 
   expect(await screen.findByText("Simulation request failed")).toBeInTheDocument();
   expect(screen.getByText(/unexpected simulation data/i)).toBeInTheDocument();
-  expect(screen.queryByText("Company metrics")).not.toBeInTheDocument();
+  expect(screen.queryByText("Key metrics")).not.toBeInTheDocument();
 });
 
 test("shows AI loading while updated authoritative metrics remain playable", async () => {
@@ -210,8 +283,8 @@ test("shows AI loading while updated authoritative metrics remain playable", asy
   fireEvent.click(screen.getByRole("radio", { name: /Reduce Operating Expenses/ }));
   fireEvent.click(screen.getByRole("button", { name: "Confirm Decision" }));
 
-  expect(await screen.findByText("$127,500")).toBeInTheDocument();
-  expect(screen.getByText("Preparing AI briefingâ€¦")).toBeInTheDocument();
+  expect(await screen.findByLabelText("Cash: $127,500")).toBeInTheDocument();
+  expect(screen.getByText("Preparing briefing…")).toBeInTheDocument();
   expect(screen.getByRole("radio", { name: /Invest in Marketing/ })).toBeEnabled();
 });
 
@@ -230,8 +303,8 @@ test("renders deterministic fallback briefing disclosure", async () => {
   fireEvent.click(screen.getByRole("radio", { name: /Reduce Operating Expenses/ }));
   fireEvent.click(screen.getByRole("button", { name: "Confirm Decision" }));
 
-  expect(await screen.findByText(fallbackBriefingFixture.headline)).toBeInTheDocument();
-  expect(screen.getByText("Deterministic fallback")).toBeInTheDocument();
+  expect((await screen.findAllByText(fallbackBriefingFixture.headline)).length).toBeGreaterThan(0);
+  expect(screen.getAllByText("Deterministic fallback").length).toBeGreaterThan(0);
 });
 
 test("keeps gameplay functional when the AI request fails", async () => {
@@ -288,17 +361,87 @@ test("prevents a stale briefing from replacing the latest turn", async () => {
 
   fireEvent.click(screen.getByRole("radio", { name: /Reduce Operating Expenses/ }));
   fireEvent.click(screen.getByRole("button", { name: "Confirm Decision" }));
-  expect(await screen.findByText("Preparing AI briefingâ€¦")).toBeInTheDocument();
+  expect(await screen.findByText("Preparing briefing…")).toBeInTheDocument();
 
   fireEvent.click(screen.getByRole("radio", { name: /Reduce Operating Expenses/ }));
   fireEvent.click(screen.getByRole("button", { name: "Confirm Decision" }));
-  expect(await screen.findByText(latestBriefing.headline)).toBeInTheDocument();
+  expect((await screen.findAllByText(latestBriefing.headline)).length).toBeGreaterThan(0);
 
   resolveOldBriefing?.(
     jsonResponse({ ...liveBriefingFixture, headline: "Outdated Briefing" }),
   );
   await waitFor(() => {
     expect(screen.queryByText("Outdated Briefing")).not.toBeInTheDocument();
-    expect(screen.getByText(latestBriefing.headline)).toBeInTheDocument();
+    expect(screen.getAllByText(latestBriefing.headline).length).toBeGreaterThan(0);
   });
+});
+
+test("resumes saved decisions through stateless replay without briefing calls", async () => {
+  localStorage.setItem(SAVE_STORAGE_KEY, JSON.stringify(oneTurnSave));
+  const fetchMock = vi
+    .fn()
+    .mockResolvedValueOnce(jsonResponse(gameStartFixture))
+    .mockResolvedValueOnce(jsonResponse(gameTurnFixture));
+  vi.stubGlobal("fetch", fetchMock);
+  renderGameplay(oneTurnSave);
+
+  expect(await screen.findByText("Month 1 resolved")).toBeInTheDocument();
+  expect(screen.getByText("Month 2 of 12")).toBeInTheDocument();
+  expect(screen.getByText(/No AI requests were made during resume/)).toBeInTheDocument();
+  expect(fetchMock).toHaveBeenCalledTimes(2);
+  expect(fetchMock.mock.calls.filter(([url]) => String(url).endsWith("/api/ai/briefing"))).toHaveLength(0);
+  expect(localStorage.getItem(SAVE_STORAGE_KEY)).toBe(JSON.stringify(oneTurnSave));
+});
+
+test("preserves incompatible saved progress and explains the version mismatch", async () => {
+  const incompatibleSave = { ...oneTurnSave, scenario_version: "2.0.0" };
+  const serialized = JSON.stringify(incompatibleSave);
+  localStorage.setItem(SAVE_STORAGE_KEY, serialized);
+  const fetchMock = vi.fn();
+  vi.stubGlobal("fetch", fetchMock);
+  renderGameplay(incompatibleSave);
+
+  expect(await screen.findByText("Saved game could not resume")).toBeInTheDocument();
+  expect(screen.getByText(/saved scenario version is no longer available/i)).toBeInTheDocument();
+  expect(fetchMock).not.toHaveBeenCalled();
+  expect(localStorage.getItem(SAVE_STORAGE_KEY)).toBe(serialized);
+});
+
+test("keeps play active when localStorage writes are unavailable", async () => {
+  vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => {
+    throw new DOMException("Storage disabled", "SecurityError");
+  });
+  vi.stubGlobal("fetch", vi.fn().mockResolvedValueOnce(jsonResponse(gameStartFixture)));
+  renderGameplay();
+
+  await startSimulation();
+  expect(screen.getByText(/Local storage is unavailable/)).toBeInTheDocument();
+  expect(screen.getByRole("radio", { name: /Reduce Operating Expenses/ })).toBeEnabled();
+});
+
+test("restores terminal saves as completed reports without reopening decisions", async () => {
+  const terminalSave: SavedRun = {
+    ...oneTurnSave,
+    action_history: [...terminalTurnFixture.action_history],
+  };
+  let replayCount = 0;
+  const fetchMock = vi.fn((input: RequestInfo | URL) => {
+    const url = String(input);
+    if (url.endsWith("/api/games/start")) {
+      return Promise.resolve(jsonResponse(gameStartFixture));
+    }
+    if (url.endsWith("/api/games/turn")) {
+      replayCount += 1;
+      return Promise.resolve(jsonResponse(terminalReplayFixture(replayCount)));
+    }
+    return Promise.reject(new Error(`Unexpected request ${url}`));
+  });
+  vi.stubGlobal("fetch", fetchMock);
+  renderGameplay(terminalSave);
+
+  expect(await screen.findByRole("heading", { name: "Victory" })).toBeInTheDocument();
+  expect(screen.getByText("12 of 12 turns completed · Final status: Won")).toBeInTheDocument();
+  expect(screen.queryByRole("button", { name: "Confirm Decision" })).not.toBeInTheDocument();
+  expect(replayCount).toBe(12);
+  expect(fetchMock.mock.calls.filter(([url]) => String(url).endsWith("/api/ai/briefing"))).toHaveLength(0);
 });

@@ -58,9 +58,9 @@ test("opens Startup Survival from the catalog and starts browser gameplay", asyn
 
   fireEvent.click(await screen.findByRole("button", { name: "View Details" }));
   fireEvent.click(await screen.findByRole("button", { name: "Open Simulation" }));
-  fireEvent.click(screen.getByRole("button", { name: "Start Simulation" }));
+  fireEvent.click(screen.getByRole("button", { name: "Start New Game" }));
 
-  expect(await screen.findByText("Company metrics")).toBeInTheDocument();
+  expect(await screen.findByText("Key metrics")).toBeInTheDocument();
   expect(screen.getByText("$150,000")).toBeInTheDocument();
   expect(screen.getByRole("button", { name: "Confirm Decision" })).toBeDisabled();
 });

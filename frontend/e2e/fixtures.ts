@@ -95,9 +95,9 @@ export async function startStartupSimulation(page: Page): Promise<void> {
       response.url() === `${backendUrl}/api/games/start` &&
       response.request().method() === "POST",
   );
-  await page.getByRole("button", { name: "Start Simulation" }).click();
+  await page.getByRole("button", { name: "Start New Game" }).click();
   await expect((await startResponse).ok()).toBeTruthy();
-  await expect(page.getByRole("heading", { name: "Company metrics" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Key metrics" })).toBeVisible();
   await expect(page.getByText("Seed 42")).toBeVisible();
 }
 

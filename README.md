@@ -6,7 +6,9 @@ The first playable definition is **Startup Survival**: manage a startup over 12 
 
 ## Project status
 
-**Brick 6: live AI integration** is implemented and verified with mocked provider responses and deterministic fallback. After each accepted turn, the browser independently requests a grounded strategic briefing; metrics update without waiting for AI, and provider failure never blocks play. A real-provider smoke test remains pending until a backend API key is securely configured and usage is authorized, so Brick 6 is not yet marked fully verified. Persistence, custom generation, and additional playable scenarios remain out of scope.
+**Bricks 1–6 are complete and verified.** Brick 6's real-provider smoke test succeeded once with the configured `gpt-4.1-mini` model. After each accepted turn, the browser independently requests a grounded strategic briefing; metrics update without waiting for AI, and provider failure never blocks play.
+
+**Brick 7: gameplay dashboard and persistence** is complete. The gameplay screen includes metadata-driven KPI cards and accessible trend charts, an authoritative decision timeline, versioned local save/resume through deterministic backend replay, and an engine-grounded terminal report. AI briefings remain explanatory and are mocked in automated tests. No additional scenarios, event generation, or document imports were added.
 
 ## Official predefined scenarios
 
@@ -369,6 +371,43 @@ Important codes include `invalid_request`, `scenario_not_found`, `scenario_not_a
 The scenario library continues to show all three predefined cards and the planned custom-scenario feature. Startup Survival can open a responsive gameplay screen; the other predefined scenarios remain disabled as **Coming Soon**.
 
 The player starts a run, reviews definition-driven metrics and available decisions, selects and confirms one action, then sees the exact state, deltas, event, status, and outcome returned by FastAPI. Currency formatting converts integer cents only for presentation. Delta color uses each metric's `favorable_direction`; an increase is not assumed to be beneficial. While a request is pending, duplicate submission is blocked. Failed requests preserve the prior accepted state and expose a retry action. Terminal games disable decisions and offer a fresh restart through `/api/games/start`.
+
+### Dashboard and browser saves
+
+The responsive gameplay dashboard iterates the active scenario's metric metadata for KPI cards and chart series. Charts include the server-provided initial values and accepted `DecisionRecord.metric_changes`; they do not invent intermediate values. The `cents` unit is divided by 100 only by presentation formatters. Decision history is rendered in backend order, with authoritative events and metric changes displayed separately from optional AI narrative.
+
+The MVP save uses the `scenariolab.saved-run` localStorage key and contains only replay identity:
+
+```json
+{
+  "format_version": 1,
+  "scenario_id": "startup-survival",
+  "scenario_version": "1.0.0",
+  "seed": 42,
+  "action_history": ["reduce-operating-expenses"]
+}
+```
+
+The browser validates the exact save shape and never saves metric values, status, event outcomes, credentials, or provider configuration. It writes after a successful start or accepted turn. Continue calls `/api/games/start` with the saved seed and replays each saved action through `/api/games/turn`; the response version must match the pinned version. Resume makes no AI requests for historical turns. Corrupt, incompatible, or unavailable storage is reported without preventing play. Saves stay on the current browser profile and are not synchronized across devices.
+
+## Run checks
+
+Run the backend suite from the repository root so the test process uses project defaults rather than a backend-local dotenv file:
+
+```powershell
+uv run --project backend --no-sync pytest backend/tests
+```
+
+Run frontend checks from `frontend`:
+
+```powershell
+npm test
+npm run build
+npm run test:e2e
+npm run test:e2e:headed -- --grep "homepage lists all predefined scenarios"
+```
+
+Playwright uses dedicated backend and frontend ports. Its backend process has AI disabled, and every automated briefing request is intercepted by the test fixture.
 
 ## Future generated scenarios
 

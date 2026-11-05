@@ -55,28 +55,6 @@ export const scenarioCatalogFixture: ScenarioCatalogEntry[] = [
   },
 ];
 
-export const startupDefinitionFixture: ScenarioDefinition = {
-  scenario_id: "startup-survival",
-  schema_version: "1.0",
-  version: "1.0.0",
-  title: "Startup Survival",
-  description: "Guide a startup through twelve months of hard tradeoffs.",
-  category: "business",
-  metadata: {
-    objective: "Keep a startup alive for 12 simulated months.",
-    disclaimer: "A fictional simulation.",
-  },
-  turn: {
-    duration: 1,
-    unit: "month",
-    max_turns: 12,
-  },
-  metrics: [
-    { metric_id: "cash", title: "Cash" },
-    { metric_id: "team-morale", title: "Team Morale" },
-  ],
-};
-
 const moneyFormat = {
   style: "currency" as const,
   decimals: 0,
@@ -131,6 +109,51 @@ export const startupMetricsFixture: MetricDefinition[] = [
   metric("customer-satisfaction", "Customer Satisfaction", 82, "score", "points", scoreFormat, "higher", 100),
   metric("team-morale", "Team Morale", 75, "score", "points", scoreFormat, "higher", 100),
 ];
+
+const fixtureInitialValues = Object.fromEntries(
+  startupMetricsFixture.map((definition) => [definition.metric_id, definition.initial_value]),
+);
+
+export const startupDefinitionFixture: ScenarioDefinition = {
+  scenario_id: "startup-survival",
+  schema_version: "1.0",
+  version: "1.0.0",
+  title: "Startup Survival",
+  description: "Guide a startup through twelve months of hard tradeoffs.",
+  category: "business",
+  metadata: {
+    objective: "Keep a startup alive for 12 simulated months.",
+    disclaimer: "A fictional simulation.",
+  },
+  initial_state: fixtureInitialValues,
+  turn: {
+    duration: 1,
+    unit: "month",
+    max_turns: 12,
+  },
+  metrics: startupMetricsFixture,
+  events: [
+    {
+      event_id: "competitor-price-cut",
+      title: "Competitor Price Cut",
+      description: "A competitor lowers prices and pressures customer sentiment.",
+    },
+  ],
+  win_conditions: [
+    {
+      condition_id: "survived-the-year",
+      title: "The Startup Survived",
+      description: "Complete the final month with cash remaining.",
+    },
+  ],
+  loss_conditions: [
+    {
+      condition_id: "cash-exhausted",
+      title: "Cash Exhausted",
+      description: "The startup can no longer fund operations.",
+    },
+  ],
+};
 
 export const startupActionsFixture: ScenarioAction[] = [
   {
@@ -292,6 +315,15 @@ const terminalState: GameState = {
   current_turn: 12,
   status: "won",
   metric_values: { ...nextState.metric_values, cash: 2_050_000 },
+  decision_history: Array.from({ length: 12 }, (_, index) => ({
+    ...firstDecision,
+    action_id: index < 4 ? "reduce-operating-expenses" : "invest-in-marketing",
+    action_title: index < 4 ? "Reduce Operating Expenses" : "Invest in Marketing",
+    turn: index + 1,
+    sequence: index + 1,
+    resulting_status: index === 11 ? "won" as const : "active" as const,
+    outcome_reason: index === 11 ? "survived-the-year" : "turn-completed",
+  })),
 };
 
 export const terminalTurnFixture: GameTurnResponse = {
@@ -299,7 +331,13 @@ export const terminalTurnFixture: GameTurnResponse = {
   state: terminalState,
   turn_result: {
     ...gameTurnFixture.turn_result,
+    previous_state: {
+      ...nextState,
+      current_turn: 12,
+      decision_history: terminalState.decision_history.slice(0, 11),
+    },
     new_state: terminalState,
+    selected_action: startupActionsFixture[0]!,
     completed_turn_index: 12,
     resulting_status: "won",
     outcome_reason: "survived-the-year",

@@ -337,13 +337,13 @@ Grounding is divided explicitly:
 
 The provider must return one JSON object with exactly `headline`, `situation_summary`, `consequence_explanation`, `strategic_insight`, and `next_turn_teaser`. Pydantic rejects missing/extra fields, empty or oversized strings, and control characters. Provider numeric claims are compared with numbers in the authoritative context; unsupported claims fail closed. React renders all fields as escaped text.
 
-Transport and cost controls are bounded: the provider response body is limited to 64 KiB, output tokens default to 500 and cannot exceed 800, timeout defaults to 10 seconds and cannot exceed 30, and there are no automatic retries. A 256-entry in-memory cache deduplicates successful live briefings for identical contexts. A per-process, per-caller rolling limit defaults to 20 provider attempts per minute; exceeding it uses fallback. Public multi-replica deployments still require shared edge rate limiting or authentication.
+Transport and cost controls are bounded: the provider response body is limited to 64 KiB, output tokens default to 500 and cannot exceed 800, timeout defaults to 10 seconds and cannot exceed 30, and there are no automatic retries. A 256-entry in-memory cache deduplicates successful live briefings for identical contexts. A per-process, per-caller rolling limit defaults to 20 provider attempts per minute, and a per-process semaphore defaults to two concurrent provider calls; exceeding either uses fallback. Live AI is disabled by default through `SCENARIOLAB_AI_ENABLED=false`. Public multi-replica deployments still require shared edge rate limiting and origin protection; process-local controls do not limit aggregate traffic across replicas.
 
 Missing configuration, transport/timeout/HTTP/rate-limit failure, malformed or oversized JSON, schema rejection, and unsupported numbers all return deterministic text derived from the same engine context with `source: "fallback"`. Successful validated output returns `source: "live"`. Provider exceptions, response bodies, credentials, and stack traces are not returned. A full 12-turn Startup Survival run therefore makes at most 12 distinct briefing requests; actual billing depends on configured provider rates and the bounded input/output token counts.
 
 The frontend applies a successful turn response immediately, then starts the briefing request independently. It aborts the prior request and checks a monotonically increasing request version before rendering, preventing an older response from replacing a newer turn or surviving restart. AI failure displays a nonblocking message and leaves decisions enabled.
 
-### Candidate scenario definitions
+### Candidate scenario definitions (planned; not implemented)
 
 Predefined and generated scenarios use the identical `ScenarioDefinition` schema. The future generation flow is:
 
@@ -359,11 +359,11 @@ User prompt
 
 The LLM receives a constrained schema and may return candidate JSON only. The candidate goes through the full validation pipeline; model output is never executed. Imported PDF, document, and URL content is delimited as untrusted source material, and instructions found inside it are not followed. Provenance stores source references and extraction metadata. Brick 3 documents this boundary but implements no model provider, upload, extraction, or URL fetching.
 
-### Candidate events
+### Candidate events (planned; not implemented)
 
-The LLM receives a minimal, redacted state summary, permitted metric IDs, allowed operations, numeric limits, already-used events, and output schema. Generated events cannot introduce metrics, operations, or effects outside those limits. Failure, timeout, invalidity, or policy rejection falls back without blocking the turn.
+Current scenario events are curated declarative data selected by the deterministic engine. No LLM receives event-generation requests and model output cannot select events. If a future brick adds candidate events, the LLM must receive a minimal, redacted state summary, permitted metric IDs, allowed operations, numeric limits, already-used events, and output schema. Generated candidates must pass structural and semantic validation; failure, timeout, invalidity, or policy rejection must fall back without blocking the turn.
 
-### Explanations
+### Explanations (implemented)
 
 The LLM receives the engine's outcome record and produces presentation text. Numeric claims must correspond to supplied values. The application may additionally verify mentioned numbers or use deterministic templates when the provider fails. Explanation generation never changes state.
 
@@ -382,13 +382,11 @@ The UI may disclose that a fallback was used, but gameplay remains valid and num
 
 ## 7. Persistence and versioning
 
-Brick 5 intentionally has no persistence. Refreshing the page starts a new frontend session, and restart calls the stateless start route for a fresh seed and initial state.
+Brick 7 stores one validated replay identity in `localStorage` under `scenariolab.saved-run`: save format version, scenario ID/version, original seed, and ordered accepted action IDs. It does not store metrics, status, events, narratives, provider credentials, or configuration. A failed decision does not overwrite the latest accepted save.
 
-Future browser persistence may use `localStorage` with a versioned save envelope containing a save-schema version, pinned scenario identity/version/digest, engine version, run ID, revision, seed, action/event history, and timestamps. Treat loaded saves as untrusted: validate before use and reject incompatible or corrupt data with a recoverable UI path.
+On resume, the client checks the pinned scenario version, calls `/api/games/start` with the original seed, and submits saved actions in order through `/api/games/turn`. The backend rebuilds every state and outcome. A corrupt or incompatible save is preserved until the player clears it or starts a new run. Historical turns do not trigger AI calls. Saves are local to one browser profile; there is no cross-device sync, server-side game storage, or automatic migration between save versions.
 
-Because Python is authoritative, a resumed local save should be sent to the API for validation before the next transition. The client must not modify stored numeric state as a game action. A later server store can preserve the same domain shape while adding accounts, concurrency, and durable audit logs.
-
-Do not persist provider credentials, raw hidden prompts, or sensitive imported document content in `localStorage`.
+Treat local storage as untrusted presentation input and never use it as authoritative state. Do not persist provider credentials, raw hidden prompts, or sensitive imported document content.
 
 ## 8. Testing strategy
 
@@ -400,7 +398,7 @@ Do not persist provider credentials, raw hidden prompts, or sensitive imported d
 - **UI tests:** server-state rendering, metric formatting, decision submission, duplicate prevention, event display, retry without state advance, restart, and terminal behavior.
 - **End-to-end tests:** 12 turns with a fake AI provider and with forced provider failure.
 
-## 9. Decisions deferred beyond Brick 7
+## 9. Decisions deferred beyond Brick 8A
 
 - Balance validation for the illustrative Startup Survival values
 - Complete Cybersecurity Crisis and Space Colony definitions
@@ -408,9 +406,19 @@ Do not persist provider credentials, raw hidden prompts, or sensitive imported d
 - Cross-device save synchronization and automatic save-schema migration
 - Server-side idempotency keys if a future stateful transport is introduced
 - Whether generated event content is persisted in full or by digest plus snapshot
-- Shared distributed rate limiting, authentication, and provider observability
-- Hosting, authentication, server-side persistence, and observability
+- Shared distributed rate limiting, origin restriction, authentication, and provider observability
+- Public hosting and production operations
 - Supported PDF/document formats and URL-fetching security policy
 - Migration policy across scenario and save-schema versions
 
 These decisions should be resolved in later bricks without weakening the boundaries defined here.
+
+## 10. Deployment and security readiness (Brick 8A)
+
+The backend accepts one exact `SCENARIOLAB_FRONTEND_ORIGIN`; wildcard origins and credentialed CORS are not enabled. `SCENARIOLAB_ENVIRONMENT=production` requires an HTTPS frontend origin and HTTPS provider URL. Live AI is disabled by default and only constructs a provider when explicitly enabled with both a model and backend-only key. Store the key in the hosting platform's runtime secret manager, never in a browser variable, Docker build argument, image, log, or source file.
+
+`RequestBodyLimitMiddleware` bounds request bodies before JSON decoding; its default is 65,536 bytes and the configurable maximum is 1 MiB. The provider adapter already bounds upstream response size, timeout, and output tokens. The briefing service additionally bounds concurrent provider attempts and its rolling per-caller attempt count inside one Python process. These controls do not provide an aggregate limit across replicas. The caller identity is the ASGI peer address; proxy headers must only be trusted from known proxy addresses that overwrite client-supplied forwarding headers.
+
+The public briefing endpoint has no authentication. CORS only governs browser access and is not access control. A public deployment that enables billable AI must use shared gateway/WAF rate limiting on `/api/ai/briefing`, protect the API origin so callers cannot bypass the gateway, set provider model/rate/spend controls and alerts, and observe usage. Alerts alone do not stop spend; a configured provider hard limit can interrupt briefings and may overshoot slightly while enforcement propagates. Keep `SCENARIOLAB_AI_ENABLED=false` until these controls are in place. With AI disabled, deterministic engine gameplay and fallback briefings remain available.
+
+The checked-in deployment templates provide an HTTPS-only production baseline. The backend Docker image runs as an unprivileged user, serves `/api/health`, binds to the hosting platform's `PORT`, and excludes environment files from its Docker build context. Frontend `VITE_API_BASE_URL` is a public build-time URL and must identify the HTTPS API origin. Hosting-specific edge rate limits, TLS, origin restrictions, backups, logging retention, and billing alerts must be configured and verified by the operator; this repository does not claim those provider-side controls are active.

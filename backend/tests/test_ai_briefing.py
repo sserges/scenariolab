@@ -1,5 +1,7 @@
 import asyncio
 import json
+from concurrent.futures import ThreadPoolExecutor
+from threading import Event
 from typing import Any
 
 import httpx
@@ -182,6 +184,42 @@ def test_provider_call_limit_falls_back_without_an_extra_provider_call() -> None
     assert first.source == "live"
     assert second.source == "fallback"
     assert provider.calls == 1
+
+
+def test_provider_concurrency_limit_falls_back_without_waiting() -> None:
+    entered_provider = Event()
+    release_provider = Event()
+
+    class BlockingProvider:
+        def generate_briefing(self, _context: BriefingContext) -> BriefingContent:
+            entered_provider.set()
+            assert release_provider.wait(timeout=2)
+            return BriefingContent.model_validate(LIVE_CONTENT)
+
+    service = BriefingService(
+        BlockingProvider(),
+        max_concurrent_provider_calls=1,
+    )
+    executor = ThreadPoolExecutor(max_workers=1)
+    try:
+        first_request = executor.submit(
+            service.generate,
+            context_for_first_turn(),
+            caller_key="tester",
+        )
+        assert entered_provider.wait(timeout=2)
+
+        concurrent = service.generate(
+            context_for_third_turn(),
+            caller_key="tester",
+        )
+
+        assert concurrent.source == "fallback"
+        release_provider.set()
+        assert first_request.result(timeout=2).source == "live"
+    finally:
+        release_provider.set()
+        executor.shutdown(wait=True)
 
 
 def test_missing_provider_configuration_returns_deterministic_fallback() -> None:

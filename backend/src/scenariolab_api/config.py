@@ -1,7 +1,7 @@
 from functools import lru_cache
 from typing import Annotated, Literal
 
-from pydantic import AnyHttpUrl, Field, SecretStr, StringConstraints
+from pydantic import AnyHttpUrl, Field, SecretStr, StringConstraints, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -15,7 +15,10 @@ class Settings(BaseSettings):
     )
 
     service_name: Literal["scenariolab-api"] = "scenariolab-api"
+    environment: Literal["development", "production"] = "development"
     frontend_origin: AnyHttpUrl = AnyHttpUrl("http://localhost:5173")
+    max_request_body_bytes: int = Field(default=65_536, ge=1_024, le=1_048_576)
+    ai_enabled: bool = False
     ai_api_key: SecretStr | None = None
     ai_model: Annotated[
         str,
@@ -25,6 +28,43 @@ class Settings(BaseSettings):
     ai_timeout_seconds: float = Field(default=10.0, ge=1.0, le=30.0)
     ai_max_response_tokens: int = Field(default=500, ge=100, le=800)
     ai_provider_calls_per_minute: int = Field(default=20, ge=1, le=120)
+    ai_max_concurrent_provider_calls: int = Field(default=2, ge=1, le=32)
+
+    @model_validator(mode="after")
+    def validate_production_settings(self) -> "Settings":
+        if self.environment == "production":
+            if self.frontend_origin.scheme != "https":
+                raise ValueError("production frontend_origin must use HTTPS")
+            if (
+                self.frontend_origin.username
+                or self.frontend_origin.password
+                or self.frontend_origin.path not in ("", "/")
+                or self.frontend_origin.query
+                or self.frontend_origin.fragment
+            ):
+                raise ValueError(
+                    "production frontend_origin must be an origin without credentials or path"
+                )
+            if self.ai_base_url.scheme != "https":
+                raise ValueError("production ai_base_url must use HTTPS")
+            if (
+                self.ai_base_url.username
+                or self.ai_base_url.password
+                or self.ai_base_url.query
+                or self.ai_base_url.fragment
+            ):
+                raise ValueError(
+                    "production ai_base_url must not include credentials or URL parameters"
+                )
+            if self.ai_enabled and (
+                self.ai_api_key is None
+                or not self.ai_api_key.get_secret_value().strip()
+                or self.ai_model is None
+            ):
+                raise ValueError(
+                    "production live AI requires an API key and model when enabled"
+                )
+        return self
 
 
 @lru_cache

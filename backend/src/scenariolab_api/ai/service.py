@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from collections import OrderedDict, deque
 from hashlib import sha256
-from threading import Lock
+from threading import BoundedSemaphore, Lock
 from time import monotonic
 
 from scenariolab_api.ai.models import (
@@ -46,10 +46,12 @@ class BriefingService:
         *,
         calls_per_minute: int = 20,
         cache_entries: int = 256,
+        max_concurrent_provider_calls: int = 2,
     ) -> None:
         self._provider = provider
         self._limiter = ProviderCallLimiter(calls_per_minute)
         self._cache_entries = cache_entries
+        self._provider_slots = BoundedSemaphore(max_concurrent_provider_calls)
         self._cache: OrderedDict[str, BriefingContent] = OrderedDict()
         self._cache_lock = Lock()
 
@@ -65,10 +67,14 @@ class BriefingService:
             return BriefingResponse(source="live", **cached.model_dump())
         if self._provider is None or not self._limiter.allow(caller_key):
             return _fallback_briefing(context)
+        if not self._provider_slots.acquire(blocking=False):
+            return _fallback_briefing(context)
         try:
             briefing = self._provider.generate_briefing(context)
         except ProviderError:
             return _fallback_briefing(context)
+        finally:
+            self._provider_slots.release()
         self._set_cached(cache_key, briefing)
         return BriefingResponse(source="live", **briefing.model_dump())
 
@@ -90,7 +96,7 @@ class BriefingService:
 def create_briefing_service(settings: Settings) -> BriefingService:
     provider: AIProvider | None = None
     api_key = settings.ai_api_key.get_secret_value() if settings.ai_api_key else ""
-    if api_key and settings.ai_model:
+    if settings.ai_enabled and api_key and settings.ai_model:
         provider = OpenAICompatibleProvider(
             api_key=api_key,
             model=settings.ai_model,
@@ -101,6 +107,7 @@ def create_briefing_service(settings: Settings) -> BriefingService:
     return BriefingService(
         provider,
         calls_per_minute=settings.ai_provider_calls_per_minute,
+        max_concurrent_provider_calls=settings.ai_max_concurrent_provider_calls,
     )
 
 

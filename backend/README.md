@@ -18,15 +18,19 @@ The provider receives the scenario title/objective, completed and current turn, 
 Settings use the existing `SCENARIOLAB_` backend prefix:
 
 ```dotenv
+SCENARIOLAB_ENVIRONMENT=development
+SCENARIOLAB_AI_ENABLED=false
 SCENARIOLAB_AI_API_KEY=
 SCENARIOLAB_AI_MODEL=gpt-4.1-mini
 SCENARIOLAB_AI_BASE_URL=https://api.openai.com/v1
 SCENARIOLAB_AI_TIMEOUT_SECONDS=10
 SCENARIOLAB_AI_MAX_RESPONSE_TOKENS=500
 SCENARIOLAB_AI_PROVIDER_CALLS_PER_MINUTE=20
+SCENARIOLAB_AI_MAX_CONCURRENT_PROVIDER_CALLS=2
+SCENARIOLAB_MAX_REQUEST_BODY_BYTES=65536
 ```
 
-Copy `.env.example` to the ignored `.env` for local configuration. An API key and model are both required for live mode. An empty key selects fallback-only mode. The base URL is operator configuration and is never accepted from a browser request. Never put credentials in frontend variables, logs, fixtures, prompts, saved games, or tracked files.
+Copy `.env.example` to the ignored `.env` for local configuration. Live AI stays disabled unless `SCENARIOLAB_AI_ENABLED=true`, a key, and a model are configured. Production additionally requires HTTPS for the exact frontend origin and provider endpoint. The provider URL is operator configuration and is never accepted from a browser request. Never put credentials in frontend variables, logs, fixtures, prompts, saved games, Docker build arguments, or tracked files.
 
 Timeout is bounded to 1–30 seconds, response tokens to 100–800, and provider attempts to 1–120 per minute per caller in each application process. The default limits are 10 seconds, 500 tokens, and 20 attempts. Requests are not retried. Provider bodies larger than 64 KiB are rejected. A bounded 256-entry in-memory cache prevents repeated live calls for the same reconstructed outcome.
 
@@ -72,4 +76,4 @@ Tests use `httpx.MockTransport` and fake providers for successful responses, pro
 
 Startup Survival permits at most one briefing request after each of 12 completed turns. Provider billing varies by model and host; calculate expected cost from current provider rates as `input tokens × input rate + output tokens × output rate`, for at most 12 requests per run and no more than the configured output cap per request. The built-in limiter is per process, not a substitute for shared gateway rate limiting or authentication on a public multi-replica deployment.
 
-The real-provider smoke test is intentionally pending until credentials are securely configured and the user authorizes billable usage.
+The Brick 6 live-provider smoke test was completed once using the configured `gpt-4.1-mini` model. Brick 8A keeps live AI disabled by default (`SCENARIOLAB_AI_ENABLED=false`) and adds request-size and provider-concurrency bounds. Automated tests use mocked providers or fallback-only settings; they never make live requests. Public deployment still requires shared gateway rate limits and protection against direct-origin bypass before enabling billable AI. See `../docs/deployment.md`.

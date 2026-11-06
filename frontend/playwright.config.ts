@@ -47,6 +47,7 @@ export default defineConfig({
         // Defense in depth: the E2E backend can never initialize a live provider.
         // Browser tests still intercept the route and assert the mocked response.
         SCENARIOLAB_AI_API_KEY: "",
+        SCENARIOLAB_AI_ENABLED: "false",
         SCENARIOLAB_FRONTEND_ORIGIN: frontendUrl,
       },
       url: `${backendUrl}/api/health`,

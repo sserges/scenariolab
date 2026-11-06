@@ -13,6 +13,10 @@ The official Devpost deadline is confirmed as November 27, 2026 at 5:00 PM EST. 
 - ✅ **Brick 5 — Complete:** stateless replay-backed game APIs and a tested responsive Startup Survival browser flow are verified; planned scenarios remain unavailable.
 - ✅ **Brick 6 — Complete:** OpenAI-compatible provider configuration, stateless grounded briefings, strict output validation, deterministic fallback, independent frontend loading, cost guards, and mocked failure coverage are verified. A single credentialed live-provider smoke test passed with the configured `gpt-4.1-mini` model.
 - ✅ **Brick 7 — Complete:** Responsive scenario-driven dashboard, metadata-formatted KPI cards and accessible trend charts, authoritative decision/event history, versioned local save/resume through backend replay, terminal report, and AI briefing presentation are implemented and verified. Automated AI briefings remain mocked.
+- ✅ **Brick 8A application/security prep — Verified:** Production settings validation, bounded request bodies/provider concurrency, safe AI-off default, static hosting configuration, security findings, submission/privacy notes, and all application test suites pass. No infrastructure has been provisioned or deployed.
+- ⬜ **Brick 8A container build validation:** Dockerfile is prepared but not verified; the local Docker CLI cannot connect to the Docker Desktop Linux engine. Rerun image validation when the engine is available.
+- ⬜ **Brick 8B — Public deployment:** Configure and verify hosting, HTTPS, edge rate limiting, origin protection, operational monitoring, and public browser journeys after approval.
+- ⬜ **Devpost submission:** Prepare and submit final project materials after the internal November 25 target and before the official November 27 deadline.
 - ✅ **Playwright E2E setup — Complete:** Playwright 1.64.1 and Chromium use isolated FastAPI/Vite startup on dedicated ports, protected AI-route mocking, deterministic real-engine gameplay, desktop/mobile coverage, save/resume after reload, terminal restoration/restart, and final-report journeys.
 
 ## Daily milestones

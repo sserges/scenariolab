@@ -9,6 +9,7 @@ from scenariolab_api.routes.ai import router as ai_router
 from scenariolab_api.routes.games import router as games_router
 from scenariolab_api.routes.health import router as health_router
 from scenariolab_api.routes.scenarios import router as scenarios_router
+from scenariolab_api.request_limits import RequestBodyLimitMiddleware
 
 
 def create_app(settings: Settings | None = None) -> FastAPI:
@@ -19,6 +20,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     )
     app.state.settings = app_settings
     app.state.briefing_service = create_briefing_service(app_settings)
+    app.add_middleware(
+        RequestBodyLimitMiddleware,
+        max_body_bytes=app_settings.max_request_body_bytes,
+    )
     app.add_middleware(
         CORSMiddleware,
         allow_origins=[str(app_settings.frontend_origin).rstrip("/")],

@@ -1,6 +1,6 @@
 # ScenarioLab
 
-ScenarioLab is an AI-powered decision simulation platform. Players make bounded decisions, a deterministic simulation engine calculates their numeric consequences, and AI adds validated events and explanations without becoming the source of truth.
+ScenarioLab is a decision-simulation platform. Players make bounded decisions, a deterministic simulation engine calculates their numeric consequences, and optional AI adds validated explanations without becoming the source of truth. Game events are curated scenario data; AI does not generate or select events.
 
 The first playable definition is **Startup Survival**: manage a startup over 12 monthly turns, balance resources and operating metrics, respond to events, and receive an ending report. The official catalog also includes **Cybersecurity Crisis** and **Space Colony**, which remain clearly marked as planned until their complete definitions and tests exist.
 
@@ -9,6 +9,8 @@ The first playable definition is **Startup Survival**: manage a startup over 12 
 **Bricks 1–6 are complete and verified.** Brick 6's real-provider smoke test succeeded once with the configured `gpt-4.1-mini` model. After each accepted turn, the browser independently requests a grounded strategic briefing; metrics update without waiting for AI, and provider failure never blocks play.
 
 **Brick 7: gameplay dashboard and persistence** is complete. The gameplay screen includes metadata-driven KPI cards and accessible trend charts, an authoritative decision timeline, versioned local save/resume through deterministic backend replay, and an engine-grounded terminal report. AI briefings remain explanatory and are mocked in automated tests. No additional scenarios, event generation, or document imports were added.
+
+**Brick 8A: deployment and security readiness** is prepared locally: safe production configuration, request and provider concurrency bounds, container and static-host guidance, and submission documentation are in place. The application has not been deployed. Shared edge rate limiting and origin protection remain required before enabling billable AI on a public endpoint.
 
 ## Official predefined scenarios
 
@@ -25,7 +27,7 @@ Catalog metadata makes all three concepts discoverable. Only an `available` entr
 - Startup Survival with 12 turns
 - Decision cards with explicit, allowed effects
 - Current metrics, resource displays, and charts
-- Validated AI-generated events and narratives
+- Curated deterministic events and validated AI narrative briefings
 - Deterministic Python calculations for authoritative outcomes
 - Decision and event history
 - Local save, resume, and restart
@@ -36,7 +38,7 @@ Implementation order is Startup Survival first, then Cybersecurity Crisis and Sp
 
 ## Architecture at a glance
 
-ScenarioLab separates authored or AI-generated content from calculation:
+ScenarioLab separates scenario data from calculation:
 
 1. A versioned `ScenarioDefinition` describes a scenario as validated data.
 2. Separate `ScenarioCatalogEntry` records advertise available and planned scenarios without exposing incomplete definitions.
@@ -47,15 +49,45 @@ ScenarioLab separates authored or AI-generated content from calculation:
 
 See [docs/architecture.md](docs/architecture.md) for the contract and trust boundaries.
 
+## Demo instructions
+
+1. Start the FastAPI backend and Vite frontend using the local run commands below.
+2. Select **Startup Survival** and start a new game.
+3. Complete at least three decisions, then inspect KPI cards, trend charts, events, briefing source, and the decision timeline.
+4. Reload the browser and choose **Continue Saved Game** to demonstrate replay-based resume.
+5. Continue until the engine ends the run, review the terminal report, then restart.
+
+The demo works with AI disabled: gameplay remains available and the briefing uses a clearly labelled deterministic fallback. Cybersecurity Crisis and Space Colony are planned and are not playable.
+
+## AI implementation and assisted-development disclosure
+
+The Python engine owns all state and numeric outcomes. After a completed turn, the backend can replay the submitted scenario identity and action history, send a minimal engine-grounded context to the configured OpenAI-compatible Chat Completions endpoint, validate the five narrative fields, and return deterministic fallback text on provider failure. AI does not generate gameplay events or alter the simulation. The configured example model is `gpt-4.1-mini`; one live smoke request was verified in Brick 6. Automated tests mock provider calls.
+
+OpenAI Codex was used as a coding assistant for application implementation, tests, and documentation. The developer directed the work and reviewed the resulting changes. Direct dependencies are credited by the package manifests and lockfiles: React, TypeScript, Vite, Tailwind CSS, FastAPI, Pydantic, HTTPX, Uvicorn, Pytest, Vitest, Testing Library, and Playwright. Exact resolved versions are recorded in `frontend/package-lock.json` and `backend/uv.lock`. There are no bundled third-party image or font assets.
+
+## Privacy notes
+
+ScenarioLab has no accounts, authentication, analytics SDK, or user profile fields. The browser save contains only scenario ID/version, seed, and accepted action IDs in local storage. Game requests send those replay inputs to the backend. If live AI is enabled, the backend sends a compact simulation context to the configured provider; do not include personal or confidential information in scenario content. Hosting providers may retain request metadata in operational logs, so review retention and access settings before a public release. The app does not promise provider-side retention behavior.
+
+## Known limitations
+
+- Only Startup Survival is playable. Cybersecurity Crisis and Space Colony remain planned.
+- Saves are local to one browser profile; there is no account, server persistence, or cross-device sync.
+- Public API authentication and shared distributed rate limiting are not implemented.
+- Production live AI must remain disabled until the API origin is protected by effective shared edge limits, provider project budgets, and an operator-reviewed monitoring plan.
+- No public deployment or Devpost submission has been performed.
+
 ## Intended stack
 
 | Area | Technology |
 | --- | --- |
-| Web | React, TypeScript, Vite, Tailwind CSS, Recharts |
+| Web | React, TypeScript, Vite, Tailwind CSS, accessible SVG charts |
 | API and engine | Python, FastAPI, Pydantic |
-| AI | Configurable LLM provider behind an application-owned interface |
+| AI | OpenAI-compatible Chat Completions API behind an application-owned interface |
 | Persistence | `localStorage` initially |
 | Tests | Pytest, Vitest, Playwright |
+
+Third-party technology credits: [React](https://react.dev/), [TypeScript](https://www.typescriptlang.org/), [Vite](https://vite.dev/), [Tailwind CSS](https://tailwindcss.com/), [FastAPI](https://fastapi.tiangolo.com/), [Pydantic](https://docs.pydantic.dev/), [HTTPX](https://www.python-httpx.org/), [Uvicorn](https://www.uvicorn.org/), [Pytest](https://pytest.org/), [Vitest](https://vitest.dev/), [Testing Library](https://testing-library.com/), and [Playwright](https://playwright.dev/). Exact resolved versions are in the checked-in lockfiles; this is a direct-dependency credit list, not a full license or vulnerability audit.
 
 ## Prerequisites
 
@@ -130,14 +162,20 @@ The backend uses an OpenAI-compatible Chat Completions endpoint. Copy `backend/.
 
 | Variable | Purpose | Default/limit |
 | --- | --- | --- |
-| `SCENARIOLAB_AI_API_KEY` | Provider credential; empty means fallback-only mode | empty |
+| `SCENARIOLAB_ENVIRONMENT` | Settings validation profile; production requires HTTPS origins | `development` |
+| `SCENARIOLAB_AI_ENABLED` | Explicit live-AI switch; false always selects fallback | `false` |
+| `SCENARIOLAB_AI_API_KEY` | Provider credential; inject only on the backend | empty |
 | `SCENARIOLAB_AI_MODEL` | Provider model identifier | `gpt-4.1-mini` example |
 | `SCENARIOLAB_AI_BASE_URL` | Operator-controlled API root | `https://api.openai.com/v1` |
 | `SCENARIOLAB_AI_TIMEOUT_SECONDS` | Whole provider request timeout | `10`, allowed `1..30` |
 | `SCENARIOLAB_AI_MAX_RESPONSE_TOKENS` | Provider output cap | `500`, allowed `100..800` |
 | `SCENARIOLAB_AI_PROVIDER_CALLS_PER_MINUTE` | Per-process, per-caller provider-attempt guard | `20`, allowed `1..120` |
+| `SCENARIOLAB_AI_MAX_CONCURRENT_PROVIDER_CALLS` | Per-process in-flight provider limit | `2`, allowed `1..32` |
+| `SCENARIOLAB_MAX_REQUEST_BODY_BYTES` | API request body limit | `65536`, allowed `1024..1048576` |
 
-Never place the key in `frontend/.env`, a `VITE_` variable, source control, logs, saves, or prompts. The client cannot select the model or provider URL. With no key, all automated tests and normal gameplay use deterministic fallback briefings.
+Live AI is disabled by default even when a key and model are present. Set `SCENARIOLAB_AI_ENABLED=true` deliberately to enable it; production mode requires an HTTPS frontend origin and HTTPS provider URL, and requires both a key and model when live AI is enabled. Never place the key in `frontend/.env`, a `VITE_` variable, source control, logs, saves, image build arguments, or prompts. The browser cannot select the model or provider URL. Automated tests use mocked providers or fallback-only configuration.
+
+For local live-provider use only, explicitly set `SCENARIOLAB_AI_ENABLED=true` in the ignored backend environment file and provide the configured model and secret key. No automated test requires this setting.
 
 `POST /api/ai/briefing` accepts only replay identity, never metrics or narrative claims:
 
@@ -163,7 +201,11 @@ Never place the key in `frontend/.env`, a `VITE_` variable, source control, logs
 
 The server reconstructs the exact latest `TurnResult`, supplies the scenario objective, action, optional triggered event, metric changes, current metrics, status, and outcome reason as established facts, then accepts only the five bounded response strings. Malformed JSON, timeouts, rate limits, HTTP errors, oversized responses, unsupported numeric claims, and missing configuration all produce `source: "fallback"` without exposing provider details.
 
-One full Startup Survival run can request at most one briefing for each of its 12 turns. Identical live requests are cached in a bounded in-memory cache, output is capped at 500 tokens by default, and no automatic provider retry occurs. Actual cost depends on the configured provider and model; estimate it from the provider's current per-token rates using `input tokens × input rate + output tokens × output rate`, multiplied by at most 12 requests per run. For a public deployment, keep the application guard and add infrastructure-level rate limits or authentication because the current in-process limiter is not shared across replicas.
+The browser requests at most one briefing after each accepted turn in a single 12-turn run. Identical live contexts are cached in a bounded per-process cache, provider output is token-limited, provider concurrency is bounded, and requests are not retried. These are per-instance cost controls, not a public abuse guarantee: attackers can submit distinct histories, and multiple replicas multiply the in-process limits. Before enabling live AI publicly, place a shared gateway/WAF in front of the API, ensure the origin cannot be reached around it, and configure provider project/model restrictions, spend alerts, and a hard spending limit. A spend alert alone does not stop API traffic, and hard-limit enforcement can lag slightly; see [OpenAI's spend limits guide](https://developers.openai.com/api/docs/guides/spend-limits).
+
+## Deployment readiness
+
+See [docs/deployment.md](docs/deployment.md) for production environment templates, the container build, frontend build settings, HTTPS/CORS, health checks, hosting options, and remaining public-deployment controls. No infrastructure has been created or deployed.
 
 ## Run tests and builds
 

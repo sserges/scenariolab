@@ -1,0 +1,14 @@
+.git
+.env
+.env.*
+**/.env
+**/.env.*
+**/node_modules
+**/dist
+**/test-results
+**/playwright-report
+**/coverage
+**/.venv
+**/__pycache__
+**/.pytest_cache
+**/*.pyc

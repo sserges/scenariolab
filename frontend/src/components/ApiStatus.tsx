@@ -7,15 +7,15 @@ type ConnectionState = "loading" | "connected" | "unavailable";
 const statusContent: Record<ConnectionState, { label: string; dotClass: string }> = {
   loading: {
     label: "Checking API",
-    dotClass: "bg-amber-400",
+    dotClass: "bg-warning",
   },
   connected: {
     label: "API Connected",
-    dotClass: "bg-emerald-400",
+    dotClass: "bg-success",
   },
   unavailable: {
     label: "API Unavailable",
-    dotClass: "bg-rose-400",
+    dotClass: "bg-danger",
   },
 };
 
@@ -44,7 +44,7 @@ export function ApiStatus() {
   return (
     <div
       aria-live="polite"
-      className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-2 text-xs font-semibold tracking-wide text-slate-200"
+      className="inline-flex items-center gap-2 rounded-full border border-line bg-tint px-3 py-2 text-xs font-semibold tracking-wide text-secondary"
       role={isError ? "alert" : "status"}
     >
       <span

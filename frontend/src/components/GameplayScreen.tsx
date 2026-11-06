@@ -311,25 +311,25 @@ export function GameplayScreen({
   return (
     <section aria-labelledby="gameplay-title" className="pb-12">
       <button
-        className="mb-7 inline-flex min-h-11 items-center gap-2 rounded-lg text-sm font-semibold text-slate-300 transition-colors hover:text-white focus-visible:outline-offset-4"
+        className="mb-7 inline-flex min-h-11 items-center gap-2 rounded-lg text-sm font-semibold text-secondary transition-colors hover:text-primary focus-visible:outline-offset-4"
         onClick={onBack}
         type="button"
       >
         <span aria-hidden="true">←</span> Scenario library
       </button>
 
-      <header className="rounded-3xl border border-teal-300/20 bg-gradient-to-br from-slate-900 via-slate-900 to-slate-900/60 p-6 shadow-2xl shadow-black/20 sm:p-9">
-        <p className="text-xs font-bold uppercase tracking-[0.2em] text-teal-300">Playable simulation</p>
-        <h1 className="mt-4 text-4xl font-black tracking-tight text-white sm:text-5xl" id="gameplay-title">
+      <header className="rounded-3xl border border-accent/20 bg-surface p-6 shadow-2xl shadow-black/20 sm:p-9">
+        <p className="text-xs font-bold uppercase tracking-[0.2em] text-accent">Playable simulation</p>
+        <h1 className="mt-4 text-4xl font-black tracking-tight text-primary sm:text-5xl" id="gameplay-title">
           {scenarioTitle}
         </h1>
-        <p className="mt-4 max-w-3xl text-base leading-7 text-slate-300 sm:text-lg sm:leading-8">{objective}</p>
+        <p className="mt-4 max-w-3xl text-base leading-7 text-secondary sm:text-lg sm:leading-8">{objective}</p>
         {session !== null && (
-          <dl className="mt-6 flex flex-wrap gap-3 text-xs font-semibold text-slate-300">
-            <div className="rounded-full border border-white/10 bg-white/5 px-3 py-2">
+          <dl className="mt-6 flex flex-wrap gap-3 text-xs font-semibold text-secondary">
+            <div className="rounded-full border border-line bg-tint px-3 py-2">
               <dt className="sr-only">Replay seed</dt><dd>Seed {session.seed}</dd>
             </div>
-            <div className="rounded-full border border-white/10 bg-white/5 px-3 py-2">
+            <div className="rounded-full border border-line bg-tint px-3 py-2">
               <dt className="sr-only">Scenario version</dt><dd>Version {session.scenarioVersion}</dd>
             </div>
           </dl>
@@ -337,7 +337,7 @@ export function GameplayScreen({
       </header>
 
       {persistenceStatus === "unavailable" && session !== null && (
-        <p className="mt-5 rounded-2xl border border-amber-300/20 bg-amber-300/5 p-4 text-sm leading-6 text-amber-100" role="status">
+        <p className="mt-5 rounded-2xl border border-warning/20 bg-warning/5 p-4 text-sm leading-6 text-warning" role="status">
           Local storage is unavailable. Gameplay is still active, but progress could not be saved on this device.
         </p>
       )}
@@ -346,12 +346,12 @@ export function GameplayScreen({
       )}
 
       {errorMessage !== null && (
-        <div className="mt-5 rounded-2xl border border-rose-300/20 bg-rose-300/5 p-5" role="alert">
-          <p className="font-bold text-rose-100">{failedOperation === "resume" ? "Saved game could not resume" : "Simulation request failed"}</p>
-          <p className="mt-2 text-sm leading-6 text-slate-200">{errorMessage}</p>
+        <div className="mt-5 rounded-2xl border border-danger/20 bg-danger/5 p-5" role="alert">
+          <p className="font-bold text-danger">{failedOperation === "resume" ? "Saved game could not resume" : "Simulation request failed"}</p>
+          <p className="mt-2 text-sm leading-6 text-secondary">{errorMessage}</p>
           <div className="mt-4 flex flex-wrap gap-3">
             <button
-              className="min-h-10 rounded-xl border border-rose-200/30 px-4 py-2 text-sm font-bold text-rose-100 hover:bg-rose-200/10 disabled:cursor-wait disabled:opacity-60"
+              className="min-h-10 rounded-xl border border-danger/30 px-4 py-2 text-sm font-bold text-danger hover:bg-danger/10 disabled:cursor-wait disabled:opacity-60"
               disabled={isPending}
               onClick={retryLastRequest}
               type="button"
@@ -360,7 +360,7 @@ export function GameplayScreen({
             </button>
             {failedOperation === "resume" && (
               <button
-                className="min-h-10 rounded-xl border border-white/15 px-4 py-2 text-sm font-semibold text-slate-200 hover:bg-white/5"
+                className="min-h-10 rounded-xl border border-line px-4 py-2 text-sm font-semibold text-secondary hover:bg-tint"
                 onClick={onBack}
                 type="button"
               >
@@ -372,23 +372,23 @@ export function GameplayScreen({
       )}
 
       {session === null ? (
-        <div className="mt-7 rounded-3xl border border-white/10 bg-white/[0.025] p-7 text-center sm:p-12">
+        <div className="mt-7 rounded-3xl border border-line bg-tint p-7 text-center sm:p-12">
           {pendingOperation === "resume" ? (
             <div aria-live="polite" className="mx-auto max-w-xl" role="status">
-              <h2 className="text-2xl font-bold text-white">Resuming saved simulation</h2>
-              <p className="mt-3 leading-7 text-slate-300">
+              <h2 className="text-2xl font-bold text-primary">Resuming saved simulation</h2>
+              <p className="mt-3 leading-7 text-secondary">
                 The backend is replaying the saved decisions from the original seed. Past turns will not request AI briefings.
               </p>
             </div>
           ) : (
             <>
-              <h2 className="text-2xl font-bold text-white">Ready for a new run?</h2>
-              <p className="mx-auto mt-3 max-w-xl leading-7 text-slate-300">
+              <h2 className="text-2xl font-bold text-primary">Ready for a new run?</h2>
+              <p className="mx-auto mt-3 max-w-xl leading-7 text-secondary">
                 Start a new deterministic run. The server will provide the initial state and allowed decisions.
                 A successful start replaces this device’s prior save.
               </p>
               <button
-                className="mt-7 min-h-12 rounded-xl bg-teal-300 px-6 py-3 font-bold text-slate-950 transition-colors hover:bg-teal-200 disabled:cursor-wait disabled:opacity-60"
+                className="mt-7 min-h-12 rounded-xl bg-accent px-6 py-3 font-bold text-on-accent transition-colors hover:bg-accent-hover disabled:cursor-wait disabled:opacity-60"
                 disabled={isPending}
                 onClick={() => void beginSimulation()}
                 type="button"
@@ -457,24 +457,24 @@ function GameBoard({
 
   return (
     <div className="mt-7 space-y-8">
-      <section aria-labelledby="turn-progress-heading" className="rounded-3xl border border-white/10 bg-slate-900/70 p-5 sm:p-6">
+      <section aria-labelledby="turn-progress-heading" className="rounded-3xl border border-line bg-surface p-5 sm:p-6">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <p className="text-xs font-bold uppercase tracking-wider text-slate-400">Simulation progress</p>
-            <h2 aria-live="polite" className="mt-1 text-xl font-bold text-white" id="turn-progress-heading">
+            <p className="text-xs font-bold uppercase tracking-wider text-secondary">Simulation progress</p>
+            <h2 aria-live="polite" className="mt-1 text-xl font-bold text-primary" id="turn-progress-heading">
               {capitalize(session.scenario.turn.unit)} {session.state.current_turn} of {session.state.max_turns}
             </h2>
-            <p className="mt-1 text-sm text-slate-400">
+            <p className="mt-1 text-sm text-secondary">
               {completedTurns} {completedTurns === 1 ? "decision" : "decisions"} completed
             </p>
           </div>
           <div className="flex w-full flex-col gap-2 sm:max-w-xs">
-            <label className="text-xs font-semibold text-slate-300" htmlFor="turn-progress">
+            <label className="text-xs font-semibold text-secondary" htmlFor="turn-progress">
               {completedTurns} of {session.state.max_turns} turns complete
             </label>
             <progress
               aria-label="Simulation progress"
-              className="h-3 w-full accent-teal-300"
+              className="h-3 w-full accent-accent"
               id="turn-progress"
               max={session.state.max_turns}
               value={completedTurns}
@@ -487,10 +487,10 @@ function GameBoard({
       <section aria-labelledby="metrics-heading">
         <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
           <div>
-            <p className="text-sm font-semibold text-teal-200">Authoritative state</p>
-            <h2 className="mt-1 text-2xl font-bold text-white" id="metrics-heading">Key metrics</h2>
+            <p className="text-sm font-semibold text-accent">Authoritative state</p>
+            <h2 className="mt-1 text-2xl font-bold text-primary" id="metrics-heading">Key metrics</h2>
           </div>
-          <span className="text-xs text-slate-400">Values and changes from the Python engine</span>
+          <span className="text-xs text-secondary">Values and changes from the Python engine</span>
         </div>
         <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
           {session.scenario.metrics.map((metric) => (
@@ -510,17 +510,17 @@ function GameBoard({
       {!terminal && (
         <section
           aria-labelledby="decisions-heading"
-          className="rounded-3xl border border-teal-300/15 bg-slate-900/70 p-5 sm:p-7"
+          className="rounded-3xl border border-accent/15 bg-surface p-5 sm:p-7"
         >
-          <p className="text-sm font-semibold text-teal-200">Your move</p>
-          <h2 className="mt-1 text-2xl font-bold text-white" id="decisions-heading">Available decisions</h2>
+          <p className="text-sm font-semibold text-accent">Your move</p>
+          <h2 className="mt-1 text-2xl font-bold text-primary" id="decisions-heading">Available decisions</h2>
           <fieldset className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
             <legend className="sr-only">Choose one available decision</legend>
             {session.availableActions.map((action) => {
               const selected = action.action_id === selectedActionId;
               return (
                 <label
-                  className={`group min-h-32 cursor-pointer rounded-2xl border p-5 transition-colors focus-within:ring-2 focus-within:ring-teal-300 focus-within:ring-offset-2 focus-within:ring-offset-slate-950 ${selected ? "border-teal-300 bg-teal-300/10" : "border-white/10 bg-slate-950/40 hover:border-white/25"}`}
+                  className={`group min-h-32 cursor-pointer rounded-2xl border p-5 transition-colors focus-within:ring-2 focus-within:ring-focus focus-within:ring-offset-2 focus-within:ring-offset-canvas ${selected ? "border-accent bg-accent/10" : "border-line bg-inset hover:border-line"}`}
                   key={action.action_id}
                 >
                   <input
@@ -532,17 +532,17 @@ function GameBoard({
                     type="radio"
                     value={action.action_id}
                   />
-                  <span className="flex items-center gap-3 font-bold text-white">
-                    <span aria-hidden="true" className={`grid h-5 w-5 shrink-0 place-items-center rounded-full border ${selected ? "border-teal-300 bg-teal-300 text-slate-950" : "border-slate-500 text-transparent"}`}>✓</span>
+                  <span className="flex items-center gap-3 font-bold text-primary">
+                    <span aria-hidden="true" className={`grid h-5 w-5 shrink-0 place-items-center rounded-full border ${selected ? "border-accent bg-accent text-on-accent" : "border-muted text-transparent"}`}>✓</span>
                     {action.title}
                   </span>
-                  <span className="mt-3 block text-sm leading-6 text-slate-300">{action.description}</span>
+                  <span className="mt-3 block text-sm leading-6 text-secondary">{action.description}</span>
                 </label>
               );
             })}
           </fieldset>
           <button
-            className="mt-5 min-h-12 rounded-xl bg-teal-300 px-6 py-3 font-bold text-slate-950 transition-colors hover:bg-teal-200 focus-visible:outline-offset-4 disabled:cursor-not-allowed disabled:opacity-50"
+            className="mt-5 min-h-12 rounded-xl bg-accent px-6 py-3 font-bold text-on-accent transition-colors hover:bg-accent-hover focus-visible:outline-offset-4 disabled:cursor-not-allowed disabled:opacity-50"
             disabled={selectedActionId === null || isPending}
             onClick={onSubmit}
             type="button"
@@ -550,7 +550,7 @@ function GameBoard({
             {isPending ? "Resolving Decision…" : "Confirm Decision"}
           </button>
           {persistenceStatus === "saved" && (
-            <span className="ml-4 text-xs text-slate-400">Saved automatically on this device</span>
+            <span className="ml-4 text-xs text-secondary">Saved automatically on this device</span>
           )}
         </section>
       )}
@@ -602,58 +602,58 @@ function MetricCard({
   const delta = change?.delta ?? 0;
   const favorability = getFavorability(metric, delta);
   const tone = favorability === "favorable"
-    ? "text-emerald-200"
+    ? "text-success"
     : favorability === "unfavorable"
-      ? "text-rose-200"
-      : "text-slate-300";
+      ? "text-danger"
+      : "text-secondary";
   return (
     <article
       aria-label={`${metric.title}: ${formatMetricValue(metric, value)}`}
-      className="min-w-0 rounded-2xl border border-white/10 bg-gradient-to-br from-slate-900 to-slate-900/60 p-5"
+      className="min-w-0 rounded-2xl border border-line bg-surface p-5"
       data-change={delta > 0 ? "positive" : delta < 0 ? "negative" : "unchanged"}
       data-metric-id={metric.metric_id}
     >
-      <p className="text-xs font-bold uppercase tracking-wider text-slate-300">{metric.title}</p>
-      <p className="mt-3 break-words text-2xl font-black tracking-tight text-white sm:text-3xl">
+      <p className="text-xs font-bold uppercase tracking-wider text-secondary">{metric.title}</p>
+      <p className="mt-3 break-words text-2xl font-black tracking-tight text-primary sm:text-3xl">
         {formatMetricValue(metric, value)}
       </p>
-      <p className={`mt-2 text-xs font-semibold ${showChange ? tone : "text-slate-400"}`}>
+      <p className={`mt-2 text-xs font-semibold ${showChange ? tone : "text-secondary"}`}>
         {!showChange
           ? "Initial value"
           : delta === 0
             ? "No change this turn"
             : `${delta > 0 ? "Increase" : "Decrease"} ${formatMetricDelta(metric, delta)}${favorability === "favorable" ? " · favorable" : favorability === "unfavorable" ? " · unfavorable" : ""}`}
       </p>
-      <p className="mt-3 line-clamp-2 text-xs leading-5 text-slate-400">{metric.description}</p>
+      <p className="mt-3 line-clamp-2 text-xs leading-5 text-secondary">{metric.description}</p>
     </article>
   );
 }
 
 function TurnSummary({ result, turnUnit }: { result: TurnResult; turnUnit: string }) {
   return (
-    <section aria-labelledby="turn-summary-heading" className="rounded-3xl border border-blue-300/15 bg-blue-300/5 p-5 sm:p-6">
-      <p className="text-sm font-semibold text-blue-200">Latest authoritative result</p>
-      <h2 className="mt-1 text-xl font-bold text-white" id="turn-summary-heading">
+    <section aria-labelledby="turn-summary-heading" className="rounded-3xl border border-accent/15 bg-accent/5 p-5 sm:p-6">
+      <p className="text-sm font-semibold text-accent">Latest authoritative result</p>
+      <h2 className="mt-1 text-xl font-bold text-primary" id="turn-summary-heading">
         {capitalize(turnUnit)} {result.completed_turn_index} resolved
       </h2>
       <dl className="mt-4 grid gap-4 sm:grid-cols-2">
         <div>
-          <dt className="text-xs font-bold uppercase tracking-wider text-slate-400">Selected decision</dt>
-          <dd className="mt-1 font-semibold text-slate-100">{result.selected_action.title}</dd>
+          <dt className="text-xs font-bold uppercase tracking-wider text-secondary">Selected decision</dt>
+          <dd className="mt-1 font-semibold text-primary">{result.selected_action.title}</dd>
         </div>
         <div>
-          <dt className="text-xs font-bold uppercase tracking-wider text-slate-400">Resulting status</dt>
-          <dd className="mt-1 font-semibold text-slate-100">{humanize(result.resulting_status)}</dd>
+          <dt className="text-xs font-bold uppercase tracking-wider text-secondary">Resulting status</dt>
+          <dd className="mt-1 font-semibold text-primary">{humanize(result.resulting_status)}</dd>
         </div>
       </dl>
       {result.triggered_event !== null ? (
-        <div className="mt-5 rounded-2xl border border-amber-300/20 bg-amber-300/5 p-4">
-          <p className="text-xs font-bold uppercase tracking-wider text-amber-100">Simulation event</p>
-          <h3 className="mt-1 font-bold text-white">{result.triggered_event.title}</h3>
-          <p className="mt-1 text-sm leading-6 text-slate-200">{result.triggered_event.description}</p>
+        <div className="mt-5 rounded-2xl border border-warning/20 bg-warning/5 p-4">
+          <p className="text-xs font-bold uppercase tracking-wider text-warning">Simulation event</p>
+          <h3 className="mt-1 font-bold text-primary">{result.triggered_event.title}</h3>
+          <p className="mt-1 text-sm leading-6 text-secondary">{result.triggered_event.description}</p>
         </div>
       ) : (
-        <p className="mt-5 text-sm text-slate-300">No event triggered this turn.</p>
+        <p className="mt-5 text-sm text-secondary">No event triggered this turn.</p>
       )}
     </section>
   );
@@ -672,28 +672,28 @@ function AIBriefingPanel({
 }) {
   if (status === "loading") {
     return (
-      <section aria-labelledby="ai-briefing-heading" aria-live="polite" className="rounded-3xl border border-violet-300/20 bg-violet-300/[0.06] p-5 sm:p-6">
-        <p className="text-sm font-semibold text-violet-200">AI strategic briefing</p>
-        <h2 className="mt-1 text-xl font-bold text-white" id="ai-briefing-heading">Turn {completedTurn} briefing</h2>
-        <p className="mt-3 text-sm text-slate-200" role="status">Preparing briefing…</p>
+      <section aria-labelledby="ai-briefing-heading" aria-live="polite" className="rounded-3xl border border-briefing/20 bg-briefing/5 p-5 sm:p-6">
+        <p className="text-sm font-semibold text-briefing">AI strategic briefing</p>
+        <h2 className="mt-1 text-xl font-bold text-primary" id="ai-briefing-heading">Turn {completedTurn} briefing</h2>
+        <p className="mt-3 text-sm text-secondary" role="status">Preparing briefing…</p>
       </section>
     );
   }
   if (status === "failed") {
     return (
-      <section aria-labelledby="ai-briefing-heading" aria-live="polite" className="rounded-3xl border border-white/10 bg-white/[0.025] p-5 sm:p-6">
-        <p className="text-sm font-semibold text-slate-200">AI briefing unavailable</p>
-        <h2 className="mt-1 text-xl font-bold text-white" id="ai-briefing-heading">Turn {completedTurn} remains authoritative</h2>
-        <p className="mt-3 text-sm leading-6 text-slate-300">The engine result is complete. You can continue playing without a briefing.</p>
+      <section aria-labelledby="ai-briefing-heading" aria-live="polite" className="rounded-3xl border border-line bg-tint p-5 sm:p-6">
+        <p className="text-sm font-semibold text-secondary">AI briefing unavailable</p>
+        <h2 className="mt-1 text-xl font-bold text-primary" id="ai-briefing-heading">Turn {completedTurn} remains authoritative</h2>
+        <p className="mt-3 text-sm leading-6 text-secondary">The engine result is complete. You can continue playing without a briefing.</p>
       </section>
     );
   }
   if (briefing === null) {
     return (
-      <section aria-labelledby="ai-briefing-heading" className="rounded-3xl border border-violet-300/15 bg-violet-300/[0.04] p-5 sm:p-6">
-        <p className="text-sm font-semibold text-violet-200">AI strategic briefing</p>
-        <h2 className="mt-1 text-xl font-bold text-white" id="ai-briefing-heading">Narrative explanation</h2>
-        <p className="mt-3 text-sm leading-6 text-slate-300">
+      <section aria-labelledby="ai-briefing-heading" className="rounded-3xl border border-briefing/15 bg-briefing/5 p-5 sm:p-6">
+        <p className="text-sm font-semibold text-briefing">AI strategic briefing</p>
+        <h2 className="mt-1 text-xl font-bold text-primary" id="ai-briefing-heading">Narrative explanation</h2>
+        <p className="mt-3 text-sm leading-6 text-secondary">
           {restored
             ? "Past turns were restored from the authoritative replay. No AI requests were made during resume; a new briefing will follow your next decision."
             : "A briefing will appear after an accepted decision."}
@@ -702,42 +702,42 @@ function AIBriefingPanel({
     );
   }
   return (
-    <section aria-labelledby="ai-briefing-heading" className="rounded-3xl border border-violet-300/20 bg-violet-300/[0.06] p-5 sm:p-6">
+    <section aria-labelledby="ai-briefing-heading" className="rounded-3xl border border-briefing/20 bg-briefing/5 p-5 sm:p-6">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <p className="text-sm font-semibold text-violet-200">AI strategic briefing</p>
-          <h2 className="mt-1 text-xl font-bold text-white" id="ai-briefing-heading">{briefing.headline}</h2>
+          <p className="text-sm font-semibold text-briefing">AI strategic briefing</p>
+          <h2 className="mt-1 text-xl font-bold text-primary" id="ai-briefing-heading">{briefing.headline}</h2>
         </div>
-        <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs font-bold uppercase tracking-wider text-slate-100">
+        <span className="rounded-full border border-line bg-tint px-3 py-1 text-xs font-bold uppercase tracking-wider text-primary">
           {briefing.source === "live" ? "Live AI" : "Deterministic fallback"}
         </span>
       </div>
-      <p className="mt-3 text-sm leading-6 text-slate-200">{briefing.situation_summary}</p>
+      <p className="mt-3 text-sm leading-6 text-secondary">{briefing.situation_summary}</p>
       <dl className="mt-4 space-y-4">
         <div>
-          <dt className="text-xs font-bold uppercase tracking-wider text-slate-300">Consequence explanation</dt>
-          <dd className="mt-1 text-sm leading-6 text-slate-200">{briefing.consequence_explanation}</dd>
+          <dt className="text-xs font-bold uppercase tracking-wider text-secondary">Consequence explanation</dt>
+          <dd className="mt-1 text-sm leading-6 text-secondary">{briefing.consequence_explanation}</dd>
         </div>
         <div>
-          <dt className="text-xs font-bold uppercase tracking-wider text-slate-300">Strategic insight</dt>
-          <dd className="mt-1 text-sm leading-6 text-slate-200">{briefing.strategic_insight}</dd>
+          <dt className="text-xs font-bold uppercase tracking-wider text-secondary">Strategic insight</dt>
+          <dd className="mt-1 text-sm leading-6 text-secondary">{briefing.strategic_insight}</dd>
         </div>
       </dl>
-      <div className="mt-4 rounded-2xl border border-white/10 bg-slate-950/30 p-4">
-        <p className="text-xs font-bold uppercase tracking-wider text-slate-300">Next-turn teaser</p>
-        <p className="mt-1 text-sm leading-6 text-slate-200">{briefing.next_turn_teaser}</p>
+      <div className="mt-4 rounded-2xl border border-line bg-inset p-4">
+        <p className="text-xs font-bold uppercase tracking-wider text-secondary">Next-turn teaser</p>
+        <p className="mt-1 text-sm leading-6 text-secondary">{briefing.next_turn_teaser}</p>
       </div>
-      <p className="mt-3 text-xs text-slate-400">Narrative context only; event and metric records remain authoritative.</p>
+      <p className="mt-3 text-xs text-secondary">Narrative context only; event and metric records remain authoritative.</p>
     </section>
   );
 }
 
 function StatusBadge({ status }: { status: GameState["status"] }) {
   const style = status === "won"
-    ? "bg-emerald-300/10 text-emerald-100"
+    ? "bg-success/10 text-success"
     : status === "lost"
-      ? "bg-rose-300/10 text-rose-100"
-      : "bg-blue-300/10 text-blue-100";
+      ? "bg-danger/10 text-danger"
+      : "bg-accent/10 text-accent";
   return (
     <span aria-label={`Game status: ${humanize(status)}`} aria-live="polite" className={`w-fit rounded-full px-3 py-2 text-xs font-bold uppercase tracking-wider ${style}`} role="status">
       {humanize(status)}

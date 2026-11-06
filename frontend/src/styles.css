@@ -1,17 +1,107 @@
 @import "tailwindcss";
 
+@custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
+
+@theme inline {
+  --color-canvas: var(--theme-background);
+  --color-surface: var(--theme-surface);
+  --color-inset: var(--theme-inset);
+  --color-tint: var(--theme-tint);
+  --color-primary: var(--theme-primary);
+  --color-secondary: var(--theme-secondary);
+  --color-muted: var(--theme-muted);
+  --color-accent: var(--theme-accent);
+  --color-on-accent: var(--theme-on-accent);
+  --color-accent-hover: var(--theme-accent-hover);
+  --color-accent-text: var(--theme-accent-text);
+  --color-line: var(--theme-line);
+  --color-focus: var(--theme-focus);
+  --color-warning: var(--theme-warning);
+  --color-danger: var(--theme-danger);
+  --color-success: var(--theme-success);
+  --color-briefing: var(--theme-briefing);
+  --color-chart-grid: var(--theme-chart-grid);
+  --color-chart-axis: var(--theme-chart-axis);
+  --color-chart-label: var(--theme-chart-label);
+  --color-chart-series-1: var(--theme-chart-series-1);
+  --color-chart-series-2: var(--theme-chart-series-2);
+  --color-chart-series-3: var(--theme-chart-series-3);
+  --color-chart-series-4: var(--theme-chart-series-4);
+  --color-chart-series-5: var(--theme-chart-series-5);
+  --color-chart-series-6: var(--theme-chart-series-6);
+}
+
 :root {
-  color-scheme: dark;
+  color-scheme: light;
+  --theme-background: #f5f5f7;
+  --theme-surface: #ffffff;
+  --theme-inset: #f0f0f2;
+  --theme-tint: rgb(29 29 31 / 5%);
+  --theme-primary: #1d1d1f;
+  --theme-secondary: #6e6e73;
+  --theme-muted: #6e6e73;
+  --theme-accent: #007aff;
+  --theme-on-accent: #00152e;
+  --theme-accent-hover: #3395ff;
+  --theme-accent-text: #0057b8;
+  --theme-line: #d5d5da;
+  --theme-focus: #005fcc;
+  --theme-warning: #805400;
+  --theme-danger: #b42318;
+  --theme-success: #18794e;
+  --theme-briefing: #6039a8;
+  --theme-chart-grid: #d5d5da;
+  --theme-chart-axis: #77777d;
+  --theme-chart-label: #54545a;
+  --theme-chart-series-1: #006b5c;
+  --theme-chart-series-2: #0057b8;
+  --theme-chart-series-3: #855600;
+  --theme-chart-series-4: #b42318;
+  --theme-chart-series-5: #6039a8;
+  --theme-chart-series-6: #4d7411;
   font-family:
     Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
     sans-serif;
   font-synthesis: none;
   text-rendering: optimizeLegibility;
+  background: var(--theme-background);
+  color: var(--theme-primary);
+  transition: background-color 160ms ease, color 160ms ease;
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --theme-background: #151518;
+  --theme-surface: #242428;
+  --theme-inset: #1b1b1f;
+  --theme-tint: rgb(245 245 247 / 6%);
+  --theme-primary: #f5f5f7;
+  --theme-secondary: #aeaeb2;
+  --theme-muted: #aeaeb2;
+  --theme-accent: #0a84ff;
+  --theme-on-accent: #00152e;
+  --theme-accent-hover: #3998ff;
+  --theme-accent-text: #4da3ff;
+  --theme-line: #424247;
+  --theme-focus: #70b5ff;
+  --theme-warning: #ffd166;
+  --theme-danger: #ff8a80;
+  --theme-success: #6edba4;
+  --theme-briefing: #c4a7ff;
+  --theme-chart-grid: #424247;
+  --theme-chart-axis: #85858b;
+  --theme-chart-label: #c4c4c8;
+  --theme-chart-series-1: #5eead4;
+  --theme-chart-series-2: #60a5fa;
+  --theme-chart-series-3: #fbbf24;
+  --theme-chart-series-4: #fb7185;
+  --theme-chart-series-5: #c084fc;
+  --theme-chart-series-6: #a3e635;
 }
 
 html {
   min-width: 320px;
-  background: #020617;
+  background: var(--theme-background);
 }
 
 body {
@@ -26,6 +116,34 @@ a {
 }
 
 :focus-visible {
-  outline: 2px solid #5eead4;
+  outline: 3px solid var(--theme-focus);
   outline-offset: 3px;
+}
+
+button,
+a,
+article,
+section,
+figure,
+aside,
+header,
+footer {
+  transition-property: color, background-color, border-color, outline-color;
+  transition-duration: 160ms;
+  transition-timing-function: ease;
+}
+
+.text-accent {
+  color: var(--theme-accent-text);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
 }

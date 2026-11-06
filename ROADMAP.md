@@ -6,6 +6,8 @@ The official Devpost deadline is confirmed as November 27, 2026 at 5:00 PM EST. 
 
 ## Verified progress
 
+- ✅ **Brick 7.5 — Classic and Dark Mode — Complete:** centralized light/dark tokens, system-preference default, accessible in-app switching, independent preference persistence, themed charts and screens, and responsive visual/accessibility coverage are verified by Vitest, Playwright, and the production frontend build.
+
 - ✅ **Brick 1 — Complete:** repository policy, product architecture, scenario contract, roadmap, and compliance tracker are documented.
 - ✅ **Brick 2 — Complete:** React/Vite/Tailwind application shell, FastAPI health service, environment configuration, CORS, dependency locks, frontend tests, backend tests, and production frontend build are verified.
 - ✅ **Brick 3 — Complete:** immutable Pydantic domain models, semantic validation, the Startup Survival definition, three-entry catalog, initial game state, scenario APIs, and catalog-driven frontend are verified.

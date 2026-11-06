@@ -3,15 +3,6 @@ import { useId } from "react";
 import type { MetricSeries } from "../lib/metrics";
 import { formatMetricValue } from "../lib/metrics";
 
-const CHART_COLORS = [
-  "#5eead4",
-  "#60a5fa",
-  "#fbbf24",
-  "#fb7185",
-  "#c084fc",
-  "#a3e635",
-];
-
 interface MetricSeriesGroup {
   key: string;
   title: string;
@@ -49,17 +40,17 @@ export function MetricCharts({ series }: { series: MetricSeries[] }) {
   return (
     <section aria-labelledby="charts-heading" className="space-y-5">
       <div>
-        <p className="text-sm font-semibold text-blue-200">Simulation trends</p>
-        <h2 className="mt-1 text-2xl font-bold text-white" id="charts-heading">
+        <p className="text-sm font-semibold text-accent">Simulation trends</p>
+        <h2 className="mt-1 text-2xl font-bold text-primary" id="charts-heading">
           Financial and resource visualizations
         </h2>
-        <p className="mt-2 text-sm leading-6 text-slate-400">
+        <p className="mt-2 text-sm leading-6 text-secondary">
           Charts use the initial state and recorded values after completed turns. No
           intermediate values are inferred.
         </p>
       </div>
       {groups.length === 0 ? (
-        <div className="rounded-2xl border border-white/10 bg-white/[0.025] p-6 text-sm text-slate-400">
+        <div className="rounded-2xl border border-line bg-tint p-6 text-sm text-secondary">
           Chart history is unavailable until the server returns metric metadata and
           an initial state.
         </div>
@@ -109,15 +100,15 @@ function MetricTrendChart({ group }: { group: MetricSeriesGroup }) {
   return (
     <figure
       aria-labelledby={titleId}
-      className="min-w-0 rounded-3xl border border-white/10 bg-slate-900/70 p-4 sm:p-6"
+      className="min-w-0 rounded-3xl border border-line bg-surface p-4 sm:p-6"
     >
       <figcaption className="flex flex-wrap items-start justify-between gap-2">
         <div>
-          <h3 className="font-bold text-white" id={titleId}>{group.title}</h3>
-          <p className="mt-1 text-xs text-slate-400">Recorded value by completed turn · {group.unit}</p>
+          <h3 className="font-bold text-primary" id={titleId}>{group.title}</h3>
+          <p className="mt-1 text-xs text-secondary">Recorded value by completed turn · {group.unit}</p>
         </div>
         {points.length === 1 && (
-          <span className="rounded-full border border-white/10 px-3 py-1 text-xs text-slate-400">
+          <span className="rounded-full border border-line px-3 py-1 text-xs text-secondary">
             Initial state only
           </span>
         )}
@@ -140,7 +131,7 @@ function MetricTrendChart({ group }: { group: MetricSeriesGroup }) {
           return (
             <g key={`y-${index}`}>
               <line
-                stroke="#334155"
+                stroke="var(--theme-chart-grid)"
                 strokeDasharray="4 6"
                 strokeWidth="1"
                 x1={left}
@@ -149,7 +140,7 @@ function MetricTrendChart({ group }: { group: MetricSeriesGroup }) {
                 y2={tickY}
               />
               <text
-                fill="#cbd5e1"
+                fill="var(--theme-chart-label)"
                 fontSize="24"
                 textAnchor="end"
                 x={left - 12}
@@ -160,16 +151,16 @@ function MetricTrendChart({ group }: { group: MetricSeriesGroup }) {
             </g>
           );
         })}
-        <line stroke="#64748b" x1={left} x2={left} y1={top} y2={height - bottom} />
+        <line stroke="var(--theme-chart-axis)" x1={left} x2={left} y1={top} y2={height - bottom} />
         <line
-          stroke="#64748b"
+          stroke="var(--theme-chart-axis)"
           x1={left}
           x2={width - right}
           y1={height - bottom}
           y2={height - bottom}
         />
         <text
-          fill="#94a3b8"
+          fill="var(--theme-chart-label)"
           fontSize="22"
           textAnchor="middle"
           x={left + plotWidth / 2}
@@ -186,14 +177,14 @@ function MetricTrendChart({ group }: { group: MetricSeriesGroup }) {
           return (
             <g key={`x-${point.turn}`}>
               <line
-                stroke="#64748b"
+                stroke="var(--theme-chart-axis)"
                 x1={x(index)}
                 x2={x(index)}
                 y1={height - bottom}
                 y2={height - bottom + 5}
               />
               <text
-                fill="#cbd5e1"
+                fill="var(--theme-chart-label)"
                 fontSize="23"
                 textAnchor="middle"
                 x={x(index)}
@@ -205,7 +196,7 @@ function MetricTrendChart({ group }: { group: MetricSeriesGroup }) {
           );
         })}
         {group.series.map((item, seriesIndex) => {
-          const color = CHART_COLORS[seriesIndex % CHART_COLORS.length]!;
+          const color = `var(--theme-chart-series-${(seriesIndex % 6) + 1})`;
           const path = item.points
             .map((point, index) => `${index === 0 ? "M" : "L"} ${x(index)} ${y(point.value)}`)
             .join(" ");
@@ -216,7 +207,7 @@ function MetricTrendChart({ group }: { group: MetricSeriesGroup }) {
                 <circle
                   cx={x(index)}
                   cy={y(point.value)}
-                  fill="#020617"
+                  fill="var(--theme-surface)"
                   key={`${item.metric.metric_id}-${point.turn}`}
                   r="4.5"
                   stroke={color}
@@ -228,13 +219,13 @@ function MetricTrendChart({ group }: { group: MetricSeriesGroup }) {
         })}
       </svg>
 
-      <ul aria-label={`${group.title} legend`} className="mt-3 flex flex-wrap gap-x-5 gap-y-2 text-xs text-slate-200">
+      <ul aria-label={`${group.title} legend`} className="mt-3 flex flex-wrap gap-x-5 gap-y-2 text-xs text-secondary">
         {group.series.map((item, index) => (
           <li className="flex items-center gap-2" key={item.metric.metric_id}>
             <span
               aria-hidden="true"
               className="h-2.5 w-2.5 rounded-full"
-              style={{ backgroundColor: CHART_COLORS[index % CHART_COLORS.length] }}
+              style={{ backgroundColor: `var(--theme-chart-series-${(index % 6) + 1})` }}
             />
             {item.metric.title}
           </li>

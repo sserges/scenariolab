@@ -37,6 +37,7 @@ from scenariolab_api.engine import (
     EngineError,
     get_available_actions,
     initialize_game,
+    resolve_transient_action,
     resolve_turn,
 )
 from scenariolab_api.scenarios.startup_survival import STARTUP_SURVIVAL
@@ -532,6 +533,93 @@ def test_generic_nonfinancial_scenario_uses_all_effects_recurring_and_event_rule
     assert second.resulting_status is GameStatus.WON
     assert second.outcome_reason == "outpost-stable"
     assert second.new_state.metric_values["oxygen"] == 18
+
+
+def test_transient_action_uses_same_ordered_pipeline_and_preserves_inputs() -> None:
+    state = initialize_game(STARTUP_SURVIVAL, seed=2026)
+    definition_before = STARTUP_SURVIVAL.model_dump(mode="json")
+    state_before = state.model_dump(mode="json")
+    action = ScenarioAction(
+        action_id="director-choice-test-1",
+        title="Run a limited test",
+        description="A transient, server-approved choice.",
+        effects=(
+            ActionEffect(
+                metric_id="cash",
+                operator=EffectOperator.SUBTRACT,
+                value=100_000,
+                description="Reduce cash by the approved amount.",
+            ),
+            ActionEffect(
+                metric_id="customer-satisfaction",
+                operator=EffectOperator.ADD,
+                value=1,
+                description="Raise satisfaction by the approved amount.",
+            ),
+        ),
+    )
+
+    result = resolve_transient_action(
+        STARTUP_SURVIVAL,
+        state,
+        action,
+        provenance_digest="a" * 64,
+    )
+    repeated = resolve_transient_action(
+        STARTUP_SURVIVAL,
+        state,
+        action,
+        provenance_digest="a" * 64,
+    )
+
+    assert result == repeated
+    assert result.new_state.metric_values["cash"] == 11_900_000
+    assert result.decision_record.source == "director"
+    assert result.decision_record.director_proposal_digest == "a" * 64
+    assert result.decision_record.turn == 1
+    assert state.model_dump(mode="json") == state_before
+    assert STARTUP_SURVIVAL.model_dump(mode="json") == definition_before
+
+
+def test_transient_action_rejects_collisions_unknown_metrics_and_bad_provenance() -> None:
+    state = initialize_game(STARTUP_SURVIVAL, seed=11)
+    colliding = STARTUP_SURVIVAL.actions[0]
+    with pytest.raises(EngineError, match="collides"):
+        resolve_transient_action(
+            STARTUP_SURVIVAL,
+            state,
+            colliding,
+            provenance_digest="b" * 64,
+        )
+
+    unknown_metric_action = ScenarioAction(
+        action_id="director-choice-unknown-metric",
+        title="Unknown target",
+        description="This is invalid.",
+        effects=(
+            ActionEffect(
+                metric_id="not-declared",
+                operator=EffectOperator.ADD,
+                value=1,
+                description="Invalid effect.",
+            ),
+        ),
+    )
+    with pytest.raises(EngineError, match="unknown metric"):
+        resolve_transient_action(
+            STARTUP_SURVIVAL,
+            state,
+            unknown_metric_action,
+            provenance_digest="c" * 64,
+        )
+
+    with pytest.raises(EngineError, match="provenance"):
+        resolve_transient_action(
+            STARTUP_SURVIVAL,
+            state,
+            unknown_metric_action,
+            provenance_digest="not-a-digest",
+        )
 
 
 def test_recurring_rules_reject_unknown_or_incompatible_metric_references() -> None:

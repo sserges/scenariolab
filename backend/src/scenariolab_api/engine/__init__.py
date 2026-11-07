@@ -3,6 +3,7 @@
 from scenariolab_api.engine.core import (
     get_available_actions,
     initialize_game,
+    resolve_transient_action,
     resolve_turn,
 )
 from scenariolab_api.engine.errors import EngineError
@@ -13,6 +14,7 @@ __all__ = [
     "TurnResult",
     "get_available_actions",
     "initialize_game",
+    "resolve_transient_action",
     "resolve_turn",
 ]
 

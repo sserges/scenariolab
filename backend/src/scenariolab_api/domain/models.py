@@ -511,12 +511,25 @@ class DecisionRecord(FrozenModel):
     action_title: Annotated[str, StringConstraints(min_length=1, max_length=100)]
     turn: PositiveInt
     sequence: PositiveInt
+    source: Literal["scripted", "director"] = "scripted"
+    director_proposal_digest: Annotated[
+        str,
+        StringConstraints(pattern=r"^[a-f0-9]{64}$"),
+    ] | None = None
     event_id: StableId | None = None
     eligible_event_ids: tuple[StableId, ...] = ()
     event_random_draw: StrictInt | None = Field(default=None, ge=0)
     metric_changes: tuple[MetricChange, ...] = ()
     resulting_status: GameStatus = GameStatus.ACTIVE
     outcome_reason: StableId = "turn-completed"
+
+    @model_validator(mode="after")
+    def validate_director_provenance(self) -> Self:
+        if (self.source == "director") != (self.director_proposal_digest is not None):
+            raise ValueError(
+                "director decision records require a proposal digest; scripted records do not"
+            )
+        return self
 
 
 class SeedMetadata(FrozenModel):

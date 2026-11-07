@@ -40,7 +40,7 @@ Immutable outcome record + authoritative run state
                                   deterministic fallback
 ```
 
-The engine has no dependency on FastAPI, React, an LLM SDK, or a specific scenario. It consumes validated domain objects and returns new state plus an outcome record. The application layer coordinates optional AI calls only after an authoritative result exists; no provider output flows back into the engine.
+The engine has no dependency on FastAPI, React, an LLM SDK, or a specific scenario. It consumes validated domain objects and returns new state plus an outcome record. The existing briefing adapter is called after an authoritative result. The optional Director proposal path runs before a decision, but its application layer validates typed effects and calls the engine only with a transient `ScenarioAction`; raw provider output never reaches the engine.
 
 ## 3. `ScenarioDefinition` contract
 
@@ -276,7 +276,7 @@ The pure engine exports `initialize_game(definition, seed)`, `get_available_acti
 9. Evaluate wins and turn-only fallback losses by priority, then enforce the absolute turn limit.
 10. Return `TurnResult` with the previous state, new state, selected action, optional event, eligible event IDs and draw, metric changes, completed turn, status, reason, and the appended decision record.
 
-Every accepted turn advances completion exactly once and appends exactly one record. The engine performs all work on local copies before constructing a new frozen state, so exceptions never partially mutate the caller's snapshot. HTTP revision checks and idempotency keys remain application-layer work for a later brick; Brick 7 adds local replay-identity persistence without changing the engine.
+Every accepted turn advances completion exactly once and appends exactly one record. The engine performs all work on local copies before constructing a new frozen state, so exceptions never partially mutate the caller's snapshot. HTTP revision checks and persistent idempotency keys remain application-layer work; stateless Director request replay is deterministic but cannot prove global exactly-once execution. Brick 7 adds local scripted replay-identity persistence without changing the engine.
 
 ### 5.1 Stateless game HTTP API
 
@@ -290,6 +290,18 @@ For a turn request, FastAPI resolves the exact current predefined definition, ve
 Identical scenario versions, seeds, histories, and new actions produce identical JSON-compatible domain results. Because JavaScript cannot exactly represent all signed 64-bit integers, the HTTP seed contract is bounded to `0..9007199254740991`; the engine's wider internal seed model remains unchanged.
 
 Business failures use `ErrorResponse` with `detail.code` and `detail.message`. Unknown scenarios return 404, planned scenarios and version/terminal conflicts return 409, and malformed requests, bad histories, or invalid actions return 422. FastAPI request-validation errors are normalized to `invalid_request`. Route handlers contain replay orchestration only and do not duplicate effect, event, metric, or terminal logic.
+
+### 5.1.1 Startup Survival Director foundation (Brick 9B-1)
+
+The optional Director routes are separate from scripted gameplay and are disabled by default with `SCENARIOLAB_DIRECTOR_ENABLED=false`. They currently issue authored fallback proposals only; they do not call `AIProvider`, and they do not add a Director UI or change the version-1 browser save format.
+
+`POST /api/ai/director/proposal` replays a strict version-2 Director transcript and returns the reconstructed `GameState`, an HMAC-authenticated fallback proposal, and deterministic full-turn previews. `POST /api/ai/director/turn` verifies the current proposal against the same scenario/version, seed, turn, prior state digest, prior transcript digest, and context snapshot; it resolves one selected choice and returns `TurnResult` plus an authenticated receipt. `POST /api/ai/director/replay` reconstructs completed records only. Replay verifies signatures and bindings and never generates content or calls a provider.
+
+The application owns a pinned `startup-survival-director@1.0.0` profile. It limits choices to `add` and `subtract` on declared metrics, disallows Director-created cash or revenue, checks effect budgets and resource affordability, then previews every choice through `resolve_transient_action`. That generic engine entry point shares the scripted effect, recurring-rule, seeded curated-event, and terminal-evaluation pipeline. Its Director situation is not a `ScenarioEvent`; the situation does not advance a turn or alter metrics. After the selected choice, the engine still selects at most one eligible curated event in the existing deterministic order. `DecisionRecord.source` and `director_proposal_digest` identify the transient decision provenance.
+
+Proposals and receipts use canonical UTF-8 JSON, domain-separated SHA-256 digests, HMAC-SHA-256, and a configured key ID. `SCENARIOLAB_DIRECTOR_SIGNING_KEYS` is a JSON key ring whose values contain at least 32 UTF-8 bytes; `SCENARIOLAB_DIRECTOR_ACTIVE_SIGNING_KEY_ID` selects the signer. Retain old keys as verify-only during rotation. Missing signing configuration returns a structured 503; no ephemeral key is created. These keys are separate from `SCENARIOLAB_AI_API_KEY`.
+
+`DirectorReplayHistory` is the backend v2 transcript contract. It accepts at most 12 ordered completed records, caps each signed proposal/decision/receipt record at 4 KiB, and caps the serialized request transcript at 56,000 UTF-8 bytes under the default 65,536-byte middleware limit. The existing version-1 `SavedRun` and `/api/games/*` scripted flow remain in place. Local v2 save UI is deferred to Brick 9B-2; do not auto-convert v1 scripted history. Stateless HMAC replay detects edits and cross-state reuse but cannot prevent restoring an earlier valid prefix, deliberate branching from a valid prefix, or repeated duplicate computation across processes.
 
 ### 5.2 Frontend authority boundary
 

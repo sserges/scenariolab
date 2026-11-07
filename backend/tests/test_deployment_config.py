@@ -14,8 +14,37 @@ def test_safe_defaults_disable_live_ai_and_bound_requests() -> None:
     settings = Settings(_env_file=None)
 
     assert settings.ai_enabled is False
+    assert settings.director_enabled is False
+    assert settings.director_signing_keys == {}
     assert settings.max_request_body_bytes == 65_536
     assert settings.ai_max_concurrent_provider_calls == 2
+
+
+def test_director_signing_key_ring_is_separate_and_supports_rotation(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    old_key = "old-director-key-material-with-at-least-32-bytes"
+    active_key = "active-director-key-material-with-at-least-32-bytes"
+    monkeypatch.setenv("SCENARIOLAB_DIRECTOR_ENABLED", "true")
+    monkeypatch.setenv("SCENARIOLAB_DIRECTOR_ACTIVE_SIGNING_KEY_ID", "new-key")
+    monkeypatch.setenv(
+        "SCENARIOLAB_DIRECTOR_SIGNING_KEYS",
+        f'{{"old-key":"{old_key}","new-key":"{active_key}"}}',
+    )
+
+    settings = Settings(_env_file=None)
+
+    assert settings.director_enabled is True
+    assert settings.ai_enabled is False
+    assert settings.director_active_signing_key_id == "new-key"
+    assert set(settings.director_signing_keys) == {"old-key", "new-key"}
+    assert active_key not in repr(settings)
+    with pytest.raises(ValidationError, match="active Director signing key ID"):
+        Settings(
+            _env_file=None,
+            director_active_signing_key_id="missing-key",
+            director_signing_keys={"old-key": SecretStr(old_key)},
+        )
 
 
 def test_production_settings_parse_expected_https_configuration() -> None:

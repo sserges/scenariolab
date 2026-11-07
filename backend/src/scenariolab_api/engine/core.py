@@ -72,18 +72,58 @@ def resolve_turn(
     action_id: str,
 ) -> TurnResult:
     """Resolve exactly one turn without mutating the definition or prior state."""
-
     _validate_definition_policy(definition)
     _validate_state_consistency(definition, state)
-    if state.status in {GameStatus.WON, GameStatus.LOST}:
-        raise EngineError("game-already-complete", "completed games cannot accept actions")
-
     action = next(
         (candidate for candidate in definition.actions if candidate.action_id == action_id),
         None,
     )
     if action is None:
         raise EngineError("invalid-action", f"unknown action '{action_id}'")
+
+    return _resolve_action(definition, state, action)
+
+
+def resolve_transient_action(
+    definition: ScenarioDefinition,
+    state: GameState,
+    action: ScenarioAction,
+    *,
+    provenance_digest: str,
+) -> TurnResult:
+    """Resolve a validated transient choice through the normal turn pipeline.
+
+    The application layer must authenticate and policy-check the choice before
+    calling this generic engine entry point. The engine independently validates
+    its references and uses the same atomic effects, recurring rules, event
+    selection, and terminal evaluation as curated actions.
+    """
+    _validate_definition_policy(definition)
+    _validate_state_consistency(definition, state)
+    if any(candidate.action_id == action.action_id for candidate in definition.actions):
+        raise EngineError("invalid-action", "transient action ID collides with a scenario action")
+    if not _is_digest(provenance_digest):
+        raise EngineError("invalid-action", "transient action provenance is invalid")
+    _validate_transient_action(definition, action)
+    return _resolve_action(
+        definition,
+        state,
+        action,
+        source="director",
+        provenance_digest=provenance_digest,
+    )
+
+
+def _resolve_action(
+    definition: ScenarioDefinition,
+    state: GameState,
+    action: ScenarioAction,
+    *,
+    source: str = "scripted",
+    provenance_digest: str | None = None,
+) -> TurnResult:
+    if state.status in {GameStatus.WON, GameStatus.LOST}:
+        raise EngineError("game-already-complete", "completed games cannot accept actions")
 
     completed_turn = len(state.decision_history) + 1
     if completed_turn != state.current_turn or completed_turn > state.max_turns:
@@ -114,7 +154,15 @@ def resolve_turn(
             exhausted_attempts,
         )
 
-    provisional_history = (*state.decision_history, _provisional_record(action, completed_turn))
+    provisional_history = (
+        *state.decision_history,
+        _provisional_record(
+            action,
+            completed_turn,
+            source=source,
+            provenance_digest=provenance_digest,
+        ),
+    )
     eligible_events = _eligible_events(
         definition,
         values,
@@ -148,6 +196,8 @@ def resolve_turn(
         action_title=action.title,
         turn=completed_turn,
         sequence=completed_turn,
+        source=source,
+        director_proposal_digest=provenance_digest,
         event_id=event.event_id if event is not None else None,
         eligible_event_ids=tuple(candidate.event_id for candidate in eligible_events),
         event_random_draw=random_draw,
@@ -247,13 +297,53 @@ def _validate_state_consistency(
     action_ids = {action.action_id for action in definition.actions}
     event_ids = {event.event_id for event in definition.events}
     for index, record in enumerate(state.decision_history, start=1):
+        valid_source = (
+            record.action_id in action_ids and record.director_proposal_digest is None
+            if record.source == "scripted"
+            else record.action_id not in action_ids
+            and _is_digest(record.director_proposal_digest)
+        )
         if (
             record.turn != index
             or record.sequence != index
-            or record.action_id not in action_ids
+            or not valid_source
             or (record.event_id is not None and record.event_id not in event_ids)
         ):
             raise EngineError("invalid-state", "state history is inconsistent with definition")
+
+
+def _validate_transient_action(
+    definition: ScenarioDefinition,
+    action: ScenarioAction,
+) -> None:
+    metrics = _metric_definitions(definition)
+    action_ids = {candidate.action_id for candidate in definition.actions}
+    for condition in action.preconditions:
+        if condition.metric_id is not None and condition.metric_id not in metrics:
+            raise EngineError("invalid-action", "transient action references an unknown metric")
+        if condition.action_id is not None and condition.action_id not in action_ids:
+            raise EngineError("invalid-action", "transient action references an unknown action")
+    for effect in action.effects:
+        metric = metrics.get(effect.metric_id)
+        if metric is None:
+            raise EngineError("invalid-action", "transient action targets an unknown metric")
+        if effect.destination_metric_id is not None:
+            destination = metrics.get(effect.destination_metric_id)
+            if destination is None:
+                raise EngineError(
+                    "invalid-action",
+                    "transient action transfers to an unknown metric",
+                )
+            if metric.unit is not destination.unit:
+                raise EngineError("invalid-action", "transient transfer units do not match")
+
+
+def _is_digest(value: str | None) -> bool:
+    return (
+        isinstance(value, str)
+        and len(value) == 64
+        and all(character in "0123456789abcdef" for character in value)
+    )
 
 
 def _metric_definitions(
@@ -262,12 +352,20 @@ def _metric_definitions(
     return {metric.metric_id: metric for metric in definition.metrics}
 
 
-def _provisional_record(action: ScenarioAction, turn: int) -> DecisionRecord:
+def _provisional_record(
+    action: ScenarioAction,
+    turn: int,
+    *,
+    source: str = "scripted",
+    provenance_digest: str | None = None,
+) -> DecisionRecord:
     return DecisionRecord(
         action_id=action.action_id,
         action_title=action.title,
         turn=turn,
         sequence=turn,
+        source=source,
+        director_proposal_digest=provenance_digest,
     )
 
 

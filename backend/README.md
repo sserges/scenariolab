@@ -1,6 +1,6 @@
 # ScenarioLab API and Engine
 
-The package contains the FastAPI scenario catalog, stateless game transport, pure deterministic simulation engine, and optional outcome-grounded AI briefing service. `POST /api/games/start` initializes a run; `POST /api/games/turn` reconstructs prior state and resolves one new action; `POST /api/ai/briefing` independently reconstructs a completed history and narrates only its latest recorded outcome. No server-side game session is stored.
+The package contains the FastAPI scenario catalog, stateless game transport, pure deterministic simulation engine, outcome-grounded AI briefing service, and the fallback-only Brick 9B-1 Director foundation. `POST /api/games/start` initializes a scripted run; `POST /api/games/turn` reconstructs prior state and resolves one new action; `POST /api/ai/briefing` independently reconstructs a completed history and narrates only its latest recorded outcome. Director proposal, turn, and replay routes use signed v2 transcripts. No server-side game session is stored.
 
 ## AI service boundary
 
@@ -27,6 +27,7 @@ SCENARIOLAB_AI_TIMEOUT_SECONDS=10
 SCENARIOLAB_AI_MAX_RESPONSE_TOKENS=500
 SCENARIOLAB_AI_PROVIDER_CALLS_PER_MINUTE=20
 SCENARIOLAB_AI_MAX_CONCURRENT_PROVIDER_CALLS=2
+SCENARIOLAB_DIRECTOR_ENABLED=false
 SCENARIOLAB_MAX_REQUEST_BODY_BYTES=65536
 ```
 
@@ -63,6 +64,42 @@ Response:
 All five narrative strings are required, unknown fields are rejected, and field lengths are capped. Generated numeric claims must correspond to values present in the grounding context; the prompt asks the model to avoid digits entirely. The teaser must describe only hypothetical possibilities.
 
 The endpoint rejects unknown or planned scenarios, version mismatches, empty histories, histories over the scenario turn limit, and impossible replays before any provider call. It accepts no client-authored state. Provider absence, timeout, HTTP/rate-limit errors, invalid or oversized JSON, schema failure, and unsupported numeric claims return HTTP 200 with `source: "fallback"`. Raw provider failures and credentials are never returned.
+
+## Director API foundation (Brick 9B-1)
+
+This stage supports only authored deterministic Startup Survival proposals. The Director never calls the AI provider, regardless of `SCENARIOLAB_AI_ENABLED`; no Director UI is connected. The routes return HTTP 503 with `director_disabled` unless `SCENARIOLAB_DIRECTOR_ENABLED=true` is explicitly configured.
+
+Director signing is separate from the AI provider credential. Configure a random key ring through the hosting environment, for example:
+
+```text
+SCENARIOLAB_DIRECTOR_ACTIVE_SIGNING_KEY_ID=director-2026-01
+SCENARIOLAB_DIRECTOR_SIGNING_KEYS={"director-2026-01":"<at least 32 random UTF-8 bytes>"}
+```
+
+The JSON object maps stable key IDs to key material. Keep old keys in the ring for verification during rotation and set one active key ID for new proposals. Missing or invalid signing configuration returns a structured `director_signing_unavailable` error; the service never creates an in-memory production key. Keep key material in the deployment secret manager, do not reuse `SCENARIOLAB_AI_API_KEY`, and do not put real values in `.env.example`, logs, fixtures, or browser data.
+
+The v2 request identity includes format version, `mode: "director"`, `startup-survival@1.0.0`, seed, `startup-survival-director@1.0.0`, and ordered completed `turn_records`:
+
+```json
+{
+  "format_version": 2,
+  "mode": "director",
+  "scenario_id": "startup-survival",
+  "scenario_version": "1.0.0",
+  "seed": 42,
+  "profile_id": "startup-survival-director",
+  "profile_version": "1.0.0",
+  "turn_records": []
+}
+```
+
+- `POST /api/ai/director/proposal` replays the completed prefix, then returns the current state, one signed fallback proposal, and deterministic previews. It does not advance the game.
+- `POST /api/ai/director/turn` accepts that same prefix, the signed proposal, and one `selected_choice_id`; it verifies state/history bindings, resolves one choice through the shared engine path, and returns the authoritative `TurnResult` and signed `turn_record`.
+- `POST /api/ai/director/replay` verifies and reconstructs completed records only. It never selects or regenerates a proposal and never calls a provider.
+
+Proposal and receipt payloads use sorted-key compact UTF-8 JSON and domain-separated HMAC-SHA-256. Constant-time MAC comparison is used. The proposal binds all candidate effects to the scenario/version, seed, turn, context, prior state digest, and prior history digest. The receipt additionally binds the selected choice and resulting authoritative state/result digests. The application validates records before `resolve_transient_action`; the engine then applies effects, recurring rules, at most one seeded curated event, and terminal evaluation in its normal order. The Director situation itself is not a curated event and has no numeric effect.
+
+Each completed record is capped at 4 KiB, and the full v2 request transcript is capped at 56,000 UTF-8 bytes beneath the default 65,536-byte body limit. Version-1 scripted saves and `/api/games/*` routes are unchanged; there is no automatic v1-to-v2 migration and no local Director save/UI integration in this stage. Stateless signatures reject edits and mismatched histories, but cannot prevent a user from restoring an earlier valid prefix or branching from it. Identical duplicate turn requests recompute the same result/receipt; the service has no persistent store and makes no global exactly-once claim.
 
 ## Tests and cost envelope
 

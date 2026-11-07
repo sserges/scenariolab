@@ -30,6 +30,7 @@ Production values to review:
 | `SCENARIOLAB_FRONTEND_ORIGIN` | Exact HTTPS browser origin, e.g. `https://demo.example.com` |
 | `SCENARIOLAB_MAX_REQUEST_BODY_BYTES` | Default 65,536 bytes; maximum configurable value 1,048,576 |
 | `SCENARIOLAB_AI_ENABLED` | `false` until gateway and provider cost controls are verified |
+| `SCENARIOLAB_DIRECTOR_ENABLED` | `false`; Brick 9B-1 Director APIs are fallback-only and separately disabled |
 | `SCENARIOLAB_AI_API_KEY` | Runtime secret only when live AI is enabled |
 | `SCENARIOLAB_AI_BASE_URL` | HTTPS OpenAI-compatible API origin |
 | `SCENARIOLAB_AI_PROVIDER_CALLS_PER_MINUTE` | Per-process guard; production example uses 5 |
@@ -58,6 +59,8 @@ The API health check is `GET /api/health` and reports process/API health only; i
 ## Public AI protection: required before enabling live calls
 
 The endpoint `/api/ai/briefing` is public and has no authentication. CORS is not access control. Its replay inputs are bounded and backend-reconstructed, but callers can submit repeated valid histories directly. The in-process rate limiter, 256-entry exact-context cache, and concurrency semaphore each apply to one process only; replicas multiply those limits, cache misses for distinct histories still call the provider, and concurrent identical cache misses are not single-flight deduplicated. The current caller key is the ASGI peer address. Behind a proxy, requests can share the proxy's address unless forwarded identity is configured safely. Do not trust arbitrary `X-Forwarded-For` from a public client.
+
+Brick 9B-1 adds separate Director signing configuration and routes, but its public default remains disabled. If enabled for controlled validation, configure `SCENARIOLAB_DIRECTOR_ACTIVE_SIGNING_KEY_ID` and `SCENARIOLAB_DIRECTOR_SIGNING_KEYS` as runtime secrets; do not reuse the AI provider key. Missing signing configuration returns a structured error and never creates an ephemeral signing key. Public Director generation is not available in 9B-1; keep `SCENARIOLAB_DIRECTOR_ENABLED=false` for Brick 8B.
 
 Before publicly enabling billable AI:
 

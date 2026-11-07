@@ -7,6 +7,9 @@ The official Devpost deadline is confirmed as November 27, 2026 at 5:00 PM EST. 
 ## Verified progress
 
 - ✅ **Brick 7.5 — Classic and Dark Mode — Complete:** centralized light/dark tokens, system-preference default, accessible in-app switching, independent preference persistence, themed charts and screens, and responsive visual/accessibility coverage are verified by Vitest, Playwright, and the production frontend build.
+- ✅ **Brick 9A — AI Scenario Director architecture — Complete:** repository contracts and security controls were reviewed; the Startup Survival-only Director design, signed replay records, APIs, fallback, risks, acceptance criteria, and Brick 9B plan are documented in `docs/ai-scenario-director.md`.
+- ✅ **Brick 9B-1 — Director engine, signed records, and deterministic replay — Complete:** fallback-only Startup Survival proposals, profile-bounded effects, shared transient engine path, HMAC proposal/receipt verification, stateless replay APIs, and tamper rejection are verified by 98 Pytest, 52 Vitest, production build, and 14 Playwright tests. No live AI or Director UI is included.
+- ⬜ **Brick 9B-2 — Director provider integration, browser saves, and UI — Planned:** add only after review; use fake providers in automated tests, require both AI flags, and preserve the Brick 8A security controls.
 
 - ✅ **Brick 1 — Complete:** repository policy, product architecture, scenario contract, roadmap, and compliance tracker are documented.
 - ✅ **Brick 2 — Complete:** React/Vite/Tailwind application shell, FastAPI health service, environment configuration, CORS, dependency locks, frontend tests, backend tests, and production frontend build are verified.
@@ -42,7 +45,7 @@ The official Devpost deadline is confirmed as November 27, 2026 at 5:00 PM EST. 
 | Nov 12 | ✅ Complete | Add decision and event history | Ordered timeline displays accepted decisions, authoritative events, metric changes, status, and separate briefing text |
 | Nov 13 | ✅ Complete | Add versioned `localStorage` save/resume/restart | Exact replay identity is saved; resume validates scenario version and reconstructs through stateless endpoints |
 | Nov 14 | ✅ Complete | Introduce configurable LLM provider interface | Provider config stays server-side; mocked provider and deterministic fallback tests pass |
-| Nov 15 | ⬜ Upcoming | Generate and validate AI event candidates | Invalid, unsafe, late, and out-of-contract responses are rejected |
+| Nov 15 | ⬜ Upcoming | Prepare the Brick 9B implementation gate | Confirm the pinned Startup Survival profile, strict candidate schema, and fake-provider-only verification plan |
 | Nov 16 | ✅ Complete | Generate grounded turn narratives | Stateless replay grounds validated briefings; one live configured-provider smoke request returned a validated briefing |
 | Nov 17 | ✅ Complete | Complete full 12-turn Startup Survival loop | Browser run reaches an engine-defined terminal state; saved action history restores the same result |
 | Nov 18 | ✅ Complete | Build ending report | Terminal report shows authoritative reason, turns, initial/final metrics, decision/event recap, and final trends |
@@ -50,27 +53,37 @@ The official Devpost deadline is confirmed as November 27, 2026 at 5:00 PM EST. 
 | Nov 20 | ✅ Complete | Accessibility and responsive usability pass | Keyboard controls, focus indicators, announcements, chart alternatives, contrast, mobile layout, and overflow are reviewed |
 | Nov 21 | ✅ Complete | Expand Pytest and Vitest coverage | Backend and frontend suites pass; charts, persistence, replay, and report behavior have direct assertions |
 | Nov 22 | ✅ Complete | Complete Playwright critical journeys | Dedicated-port Chromium suite passes dashboard, three-turn history/charts, reload/resume, terminal restoration/restart, mocked AI, and mobile checks |
-| Nov 23 | ⬜ Upcoming | Stretch spike: prompt-to-scenario generation | Timeboxed validated prototype or documented deferral; MVP remains unchanged |
-| Nov 24 | ⬜ Upcoming | Stretch spike: PDF/document/URL ingestion | Timeboxed provenance and injection-resistant pipeline prototype or deferral |
+| Nov 23 | ⬜ Upcoming | Brick 9B security and deployment-readiness review | Public Director generation stays off pending shared edge limits, origin protection, and provider spend controls |
+| Nov 24 | ⬜ Upcoming | Brick 9B release freeze or defer | Include Director only if every acceptance criterion passes; otherwise keep the existing MVP release candidate |
 | Nov 25 | ⬜ Upcoming | **Internal submission:** release candidate and demo freeze | Clean-machine runbook, demo script, compliance checklist, and RC tag candidate ready |
 | Nov 26 | ⬜ Upcoming | Contingency, rehearsal, and submission packaging | Only release-blocking fixes; backup demo and required assets prepared |
 | Nov 27 | ⬜ Upcoming | **Official submission by 5:00 PM EST (confirmed)** | Submit early, capture confirmation, and preserve final artifact references |
+
+## Brick 9 delivery milestones
+
+Brick 9A is complete as an architecture review. Brick 9B is the only planned implementation and remains optional to the November 25 submission: if its security, replay, or regression gates slip, keep Director disabled and proceed with the existing MVP. Brick 8B public deployment can proceed independently and must not wait for Brick 9.
+
+| Target date | Brick 9 milestone | Exit evidence |
+| --- | --- | --- |
+| Nov 6 | ✅ **Brick 9A:** complete architecture review | `docs/ai-scenario-director.md` covers current contracts, proposed policy and APIs, signed replay, lifecycle, threat mitigations, test plan, and 9B scope |
+| Nov 6 | ✅ **Brick 9B-1:** implement and verify fallback Director engine/replay foundation | 98 Pytest, 52 Vitest, TypeScript production build, 14 Playwright; three-turn fallback replay and tampered-record rejection pass |
+| Nov 16–18 | **Brick 9B-2:** add provider-owned structured proposals behind both backend flags | Candidate JSON is validated against the pinned profile; provider remains mocked in automated tests |
+| Nov 19–20 | **Brick 9B-2:** add strict v2 browser save/resume and pending proposal persistence | Signed records replay without regeneration; v1 scripted saves continue unchanged |
+| Nov 21 | **Brick 9B-2:** present situations, choices, previews, source badge, and history in existing themed UI | No redesign; generated and curated events remain separate; resume/restart behavior verified |
+| Nov 22 | **Brick 9B-2:** run focused and full regression suites | Effect boundaries, lifecycle, replay, security, accessibility, frontend, backend, and Playwright suites pass with fake providers only |
+| Nov 23 | **Brick 9B:** security and deployment-readiness review | Request-size and per-process limits are retained; public live generation remains disabled pending shared edge controls, origin protection, and provider spend controls |
+| Nov 24 | **Brick 9B:** release freeze or defer | Merge only if acceptance criteria pass; otherwise defer Director and freeze the current MVP |
+| Nov 25 | **Internal submission:** choose the verified release candidate | Director may be included only if Brick 9B passed every gate; Brick 8B proceeds on its own schedule |
 
 ## Scope gates
 
 ### MVP gate
 
-The MVP is complete only when Startup Survival supports 12 authoritative turns, decision cards, metrics and charts, validated AI events and grounded narratives, history, save/resume/restart, fallback gameplay, and an ending report.
+The existing MVP is complete when Startup Survival supports 12 authoritative turns, decision cards, metrics and charts, deterministic scripted events, grounded AI briefings, history, save/resume/restart, fallback gameplay, and an ending report. AI generated situations and choices belong to optional Brick 9B and are not a prerequisite for Brick 8B public deployment.
 
 ### Stretch gate
 
-Stretch work starts only after the November 22 critical journeys pass. In priority order:
-
-1. Prompt-to-scenario generation
-2. PDF and document-based scenarios
-3. URL-based scenarios
-
-Every generated scenario must pass the same structural and semantic validation as a curated scenario. Stretch work must not weaken offline/fallback behavior or destabilize the MVP.
+Brick 9B is the only planned stretch feature before the submission freeze. Do not begin prompt-to-scenario generation, document/URL ingestion, or support for additional scenarios during Brick 9B. The Director remains optional: incomplete replay integrity, effect validation, security, or regression work means defer it and submit the existing MVP.
 
 ## Schedule risks
 

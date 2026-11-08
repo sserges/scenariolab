@@ -179,6 +179,158 @@ export interface AIBriefingResponse {
   next_turn_teaser: string;
 }
 
+export interface DirectorEffect {
+  metric_id: string;
+  operator: "add" | "subtract";
+  value: number;
+}
+
+export interface DirectorChoice {
+  choice_id: string;
+  title: string;
+  description: string;
+  effects: DirectorEffect[];
+}
+
+export interface DirectorSituation {
+  situation_id: string;
+  beat_id: "acquisition" | "supplier" | "retention" | "partnership";
+  headline: string;
+  description: string;
+}
+
+export interface DirectorContextSnapshot {
+  context_version: "1";
+  scenario_id: string;
+  scenario_version: string;
+  profile_id: string;
+  profile_version: string;
+  seed: number;
+  turn: number;
+  metric_values: Record<string, number>;
+  recent_action_ids: string[];
+  recent_event_ids: string[];
+  recent_beats: DirectorSituation["beat_id"][];
+  recent_headline_digests: string[];
+}
+
+export interface DirectorProposalPayload {
+  record_format_version: 1;
+  context_version: "1";
+  profile_id: string;
+  profile_version: string;
+  scenario_id: string;
+  scenario_version: string;
+  seed: number;
+  turn: number;
+  previous_state_digest: string;
+  previous_history_digest: string;
+  context_digest: string;
+  context_snapshot: DirectorContextSnapshot;
+  source: "fallback";
+  situation: DirectorSituation;
+  choices: DirectorChoice[];
+}
+
+export interface HMACSignature {
+  algorithm: "HMAC-SHA256";
+  key_id: string;
+  value: string;
+}
+
+export interface SignedDirectorProposal {
+  payload: DirectorProposalPayload;
+  signature: HMACSignature;
+}
+
+export interface DirectorChoicePreview {
+  choice_id: string;
+  metric_changes: MetricChange[];
+  projected_status: GameStatus;
+  outcome_reason: string;
+  scripted_event_id: string | null;
+  scripted_event_title: string | null;
+}
+
+export interface DirectorReceiptPayload {
+  record_format_version: 1;
+  profile_id: string;
+  profile_version: string;
+  scenario_id: string;
+  scenario_version: string;
+  seed: number;
+  turn: number;
+  previous_state_digest: string;
+  previous_history_digest: string;
+  proposal_digest: string;
+  selected_choice_id: string;
+  resulting_state_digest: string;
+  result_digest: string;
+}
+
+export interface SignedDirectorReceipt {
+  payload: DirectorReceiptPayload;
+  signature: HMACSignature;
+}
+
+export interface DirectorTurnRecord {
+  proposal: SignedDirectorProposal;
+  selected_choice_id: string;
+  receipt: SignedDirectorReceipt;
+}
+
+export interface DirectorReplayHistory {
+  format_version: 2;
+  mode: "director";
+  scenario_id: string;
+  scenario_version: string;
+  seed: number;
+  profile_id: string;
+  profile_version: string;
+  turn_records: DirectorTurnRecord[];
+}
+
+export interface DirectorChoicePreviewResponse {
+  choice_id: string;
+  metric_changes: MetricChange[];
+  projected_status: GameStatus;
+  outcome_reason: string;
+  scripted_event_id: string | null;
+  scripted_event_title: string | null;
+}
+
+export interface DirectorProposalResponse {
+  scenario_id: string;
+  scenario_version: string;
+  seed: number;
+  state: GameState;
+  proposal: SignedDirectorProposal;
+  previews: DirectorChoicePreviewResponse[];
+}
+
+export interface DirectorReplayResponse {
+  scenario_id: string;
+  scenario_version: string;
+  seed: number;
+  state: GameState;
+  latest_turn_record: DirectorTurnRecord | null;
+  latest_turn_result: TurnResult | null;
+}
+
+export interface DirectorTurnResponse {
+  scenario_id: string;
+  scenario_version: string;
+  seed: number;
+  state: GameState;
+  turn_result: TurnResult;
+  turn_record: DirectorTurnRecord;
+}
+
+export interface DirectorTurnRequest extends DirectorReplayHistory {
+  proposal: SignedDirectorProposal;
+  selected_choice_id: string;
+}
+
 export class ApiError extends Error {
   readonly code: string;
   readonly status: number;
@@ -268,6 +420,39 @@ export async function getAIBriefing(
   const body = await requestJson("/api/ai/briefing", "POST", request, signal);
   if (!isAIBriefingResponse(body)) {
     throw new Error("AI briefing response did not match the expected contract");
+  }
+  return body;
+}
+
+export async function getDirectorProposal(
+  request: DirectorReplayHistory,
+  signal?: AbortSignal,
+): Promise<DirectorProposalResponse> {
+  const body = await requestJson("/api/ai/director/proposal", "POST", request, signal);
+  if (!isDirectorProposalResponse(body)) {
+    throw new Error("Director proposal response did not match the expected contract");
+  }
+  return body;
+}
+
+export async function playDirectorTurn(
+  request: DirectorTurnRequest,
+  signal?: AbortSignal,
+): Promise<DirectorTurnResponse> {
+  const body = await requestJson("/api/ai/director/turn", "POST", request, signal);
+  if (!isDirectorTurnResponse(body)) {
+    throw new Error("Director turn response did not match the expected contract");
+  }
+  return body;
+}
+
+export async function replayDirectorRun(
+  request: DirectorReplayHistory,
+  signal?: AbortSignal,
+): Promise<DirectorReplayResponse> {
+  const body = await requestJson("/api/ai/director/replay", "POST", request, signal);
+  if (!isDirectorReplayResponse(body)) {
+    throw new Error("Director replay response did not match the expected contract");
   }
   return body;
 }
@@ -401,6 +586,211 @@ function isAIBriefingResponse(value: unknown): value is AIBriefingResponse {
     isBriefingText(value.strategic_insight, 500) &&
     isBriefingText(value.next_turn_teaser, 240)
   );
+}
+
+function isDirectorProposalResponse(value: unknown): value is DirectorProposalResponse {
+  return (
+    isRecord(value) &&
+    typeof value.scenario_id === "string" &&
+    typeof value.scenario_version === "string" &&
+    isSeed(value.seed) &&
+    isGameState(value.state) &&
+    isSignedDirectorProposal(value.proposal) &&
+    Array.isArray(value.previews) &&
+    value.previews.every(isDirectorChoicePreview)
+  );
+}
+
+function isDirectorReplayResponse(value: unknown): value is DirectorReplayResponse {
+  return (
+    isRecord(value) &&
+    typeof value.scenario_id === "string" &&
+    typeof value.scenario_version === "string" &&
+    isSeed(value.seed) &&
+    isGameState(value.state) &&
+    (value.latest_turn_record === null || isDirectorTurnRecord(value.latest_turn_record)) &&
+    (value.latest_turn_result === null || isTurnResult(value.latest_turn_result))
+  );
+}
+
+function isDirectorTurnResponse(value: unknown): value is DirectorTurnResponse {
+  return (
+    isRecord(value) &&
+    typeof value.scenario_id === "string" &&
+    typeof value.scenario_version === "string" &&
+    isSeed(value.seed) &&
+    isGameState(value.state) &&
+    isTurnResult(value.turn_result) &&
+    isDirectorTurnRecord(value.turn_record)
+  );
+}
+
+export function isSignedDirectorProposal(value: unknown): value is SignedDirectorProposal {
+  if (!hasExactKeys(value, ["payload", "signature"]) || !isRecord(value.payload) || !isSignature(value.signature)) {
+    return false;
+  }
+  const payload = value.payload;
+  return (
+    hasExactKeys(payload, [
+      "record_format_version", "context_version", "profile_id", "profile_version", "scenario_id",
+      "scenario_version", "seed", "turn", "previous_state_digest", "previous_history_digest",
+      "context_digest", "context_snapshot", "source", "situation", "choices",
+    ]) &&
+    payload.record_format_version === 1 &&
+    payload.context_version === "1" &&
+    typeof payload.profile_id === "string" &&
+    typeof payload.profile_version === "string" &&
+    typeof payload.scenario_id === "string" &&
+    typeof payload.scenario_version === "string" &&
+    isSeed(payload.seed) &&
+    isInteger(payload.turn) &&
+    isDigest(payload.previous_state_digest) &&
+    isDigest(payload.previous_history_digest) &&
+    isDigest(payload.context_digest) &&
+    isDirectorContext(payload.context_snapshot) &&
+    payload.source === "fallback" &&
+    isDirectorSituation(payload.situation) &&
+    Array.isArray(payload.choices) &&
+    payload.choices.length >= 2 && payload.choices.length <= 4 &&
+    payload.choices.every(isDirectorChoice) &&
+    new Set(payload.choices.map((choice) => choice.choice_id)).size === payload.choices.length &&
+    payload.context_snapshot.scenario_id === payload.scenario_id &&
+    payload.context_snapshot.scenario_version === payload.scenario_version &&
+    payload.context_snapshot.profile_id === payload.profile_id &&
+    payload.context_snapshot.profile_version === payload.profile_version &&
+    payload.context_snapshot.seed === payload.seed &&
+    payload.context_snapshot.turn === payload.turn
+  );
+}
+
+export function isDirectorTurnRecord(value: unknown): value is DirectorTurnRecord {
+  return (
+    hasExactKeys(value, ["proposal", "selected_choice_id", "receipt"]) &&
+    isSignedDirectorProposal(value.proposal) &&
+    typeof value.selected_choice_id === "string" &&
+    isRecord(value.receipt) &&
+    hasExactKeys(value.receipt, ["payload", "signature"]) &&
+    isRecord(value.receipt.payload) &&
+    hasExactKeys(value.receipt.payload, [
+      "record_format_version", "profile_id", "profile_version", "scenario_id", "scenario_version", "seed",
+      "turn", "previous_state_digest", "previous_history_digest", "proposal_digest", "selected_choice_id",
+      "resulting_state_digest", "result_digest",
+    ]) &&
+    value.receipt.payload.record_format_version === 1 &&
+    typeof value.receipt.payload.profile_id === "string" &&
+    typeof value.receipt.payload.profile_version === "string" &&
+    typeof value.receipt.payload.scenario_id === "string" &&
+    typeof value.receipt.payload.scenario_version === "string" &&
+    isSeed(value.receipt.payload.seed) &&
+    isInteger(value.receipt.payload.turn) &&
+    isDigest(value.receipt.payload.previous_state_digest) &&
+    isDigest(value.receipt.payload.previous_history_digest) &&
+    isDigest(value.receipt.payload.proposal_digest) &&
+    isDigest(value.receipt.payload.resulting_state_digest) &&
+    isDigest(value.receipt.payload.result_digest) &&
+    isSignature(value.receipt.signature) &&
+    value.receipt.payload.selected_choice_id === value.selected_choice_id &&
+    value.receipt.payload.profile_id === value.proposal.payload.profile_id &&
+    value.receipt.payload.profile_version === value.proposal.payload.profile_version &&
+    value.receipt.payload.scenario_id === value.proposal.payload.scenario_id &&
+    value.receipt.payload.scenario_version === value.proposal.payload.scenario_version &&
+    value.receipt.payload.seed === value.proposal.payload.seed &&
+    value.receipt.payload.turn === value.proposal.payload.turn &&
+    value.receipt.signature.key_id === value.proposal.signature.key_id &&
+    value.proposal.payload.choices.some((choice) => choice.choice_id === value.selected_choice_id)
+  );
+}
+
+function isDirectorChoicePreview(value: unknown): value is DirectorChoicePreviewResponse {
+  return (
+    hasExactKeys(value, ["choice_id", "metric_changes", "projected_status", "outcome_reason", "scripted_event_id", "scripted_event_title"]) &&
+    typeof value.choice_id === "string" &&
+    Array.isArray(value.metric_changes) &&
+    value.metric_changes.every(isMetricChange) &&
+    isGameStatus(value.projected_status) &&
+    typeof value.outcome_reason === "string" &&
+    isNullableString(value.scripted_event_id) &&
+    isNullableString(value.scripted_event_title)
+  );
+}
+
+function isSignature(value: unknown): value is HMACSignature {
+  return (
+    hasExactKeys(value, ["algorithm", "key_id", "value"]) &&
+    value.algorithm === "HMAC-SHA256" &&
+    isStableIdentifier(value.key_id) &&
+    typeof value.value === "string" &&
+    /^[A-Za-z0-9_-]{43}$/.test(value.value)
+  );
+}
+
+function isDirectorContext(value: unknown): value is DirectorContextSnapshot {
+  return (
+    hasExactKeys(value, [
+      "context_version", "scenario_id", "scenario_version", "profile_id", "profile_version", "seed", "turn",
+      "metric_values", "recent_action_ids", "recent_event_ids", "recent_beats", "recent_headline_digests",
+    ]) &&
+    value.context_version === "1" &&
+    typeof value.scenario_id === "string" &&
+    typeof value.scenario_version === "string" &&
+    typeof value.profile_id === "string" &&
+    typeof value.profile_version === "string" &&
+    isSeed(value.seed) &&
+    isInteger(value.turn) &&
+    isIntegerRecord(value.metric_values) &&
+    isStringArray(value.recent_action_ids) &&
+    value.recent_action_ids.length <= 3 &&
+    isStringArray(value.recent_event_ids) &&
+    value.recent_event_ids.length <= 3 &&
+    Array.isArray(value.recent_beats) &&
+    value.recent_beats.length <= 3 &&
+    value.recent_beats.every(isDirectorBeat) &&
+    Array.isArray(value.recent_headline_digests) &&
+    value.recent_headline_digests.length <= 12 &&
+    value.recent_headline_digests.every(isDigest)
+  );
+}
+
+function isDirectorSituation(value: unknown): value is DirectorSituation {
+  return (
+    hasExactKeys(value, ["situation_id", "beat_id", "headline", "description"]) &&
+    isStableIdentifier(value.situation_id) &&
+    isDirectorBeat(value.beat_id) &&
+    isBriefingText(value.headline, 100) &&
+    isBriefingText(value.description, 200)
+  );
+}
+
+function isDirectorBeat(value: unknown): value is DirectorSituation["beat_id"] {
+  return value === "acquisition" || value === "supplier" || value === "retention" || value === "partnership";
+}
+
+function isDirectorChoice(value: unknown): value is DirectorChoice {
+  return (
+    hasExactKeys(value, ["choice_id", "title", "description", "effects"]) &&
+    isStableIdentifier(value.choice_id) &&
+    isBriefingText(value.title, 64) &&
+    isBriefingText(value.description, 120) &&
+    Array.isArray(value.effects) &&
+    value.effects.length >= 1 && value.effects.length <= 3 &&
+    value.effects.every((effect) => hasExactKeys(effect, ["metric_id", "operator", "value"]) && isStableIdentifier(effect.metric_id) &&
+      (effect.operator === "add" || effect.operator === "subtract") && isInteger(effect.value) && effect.value > 0)
+  );
+}
+
+function isDigest(value: unknown): value is string {
+  return typeof value === "string" && /^[a-f0-9]{64}$/.test(value);
+}
+
+function isStableIdentifier(value: unknown): value is string {
+  return typeof value === "string" && value.length <= 64 && /^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$/.test(value);
+}
+
+function hasExactKeys(value: unknown, expected: string[]): value is Record<string, unknown> {
+  if (!isRecord(value)) return false;
+  const keys = Object.keys(value).sort();
+  const sortedExpected = [...expected].sort();
+  return keys.length === sortedExpected.length && keys.every((key, index) => key === sortedExpected[index]);
 }
 
 function isScenarioDisplayMetadata(value: unknown): value is ScenarioDisplayMetadata {

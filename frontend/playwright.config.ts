@@ -48,6 +48,12 @@ export default defineConfig({
         // Browser tests still intercept the route and assert the mocked response.
         SCENARIOLAB_AI_API_KEY: "",
         SCENARIOLAB_AI_ENABLED: "false",
+        // Fixed, test-only backend key: never supplied to the browser or used outside E2E.
+        SCENARIOLAB_DIRECTOR_ENABLED: "true",
+        SCENARIOLAB_DIRECTOR_ACTIVE_SIGNING_KEY_ID: "director-test",
+        SCENARIOLAB_DIRECTOR_SIGNING_KEYS: JSON.stringify({
+          "director-test": "scenariolab-e2e-only-signing-key-2026-11-07",
+        }),
         SCENARIOLAB_FRONTEND_ORIGIN: frontendUrl,
       },
       url: `${backendUrl}/api/health`,

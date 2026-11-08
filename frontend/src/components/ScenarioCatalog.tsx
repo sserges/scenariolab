@@ -6,6 +6,7 @@ import {
   type ScenarioCatalogEntry,
   type ScenarioDefinition,
 } from "../lib/api";
+import { isSavedDirectorRun } from "../lib/savedRun";
 import type { SaveReadResult, SavedRun } from "../lib/savedRun";
 
 type CatalogState =
@@ -275,6 +276,8 @@ function SavedRunPanel({
   const [busy, setBusy] = useState<"continue" | "new" | null>(null);
   const [error, setError] = useState<string | null>(null);
   const scenario = scenarios.find((item) => item.scenario_id === save.scenario_id);
+  const directorSave = isSavedDirectorRun(save);
+  const completedRuns = directorSave ? save.turn_records.length : save.action_history.length;
 
   async function openSavedScenario(mode: "continue" | "new") {
     if (busy !== null) {
@@ -315,10 +318,12 @@ function SavedRunPanel({
             Continue {scenario?.title ?? save.scenario_id}
           </h3>
           <p className="mt-1 text-sm text-secondary">
-            {save.action_history.length} completed {save.action_history.length === 1 ? "decision" : "decisions"} · scenario version {save.scenario_version}
+            {completedRuns} completed {completedRuns === 1 ? "decision" : "decisions"} · {directorSave ? "AI Scenario Director" : "Classic Simulation"} · scenario version {save.scenario_version}
           </p>
           <p className="mt-1 text-xs leading-5 text-secondary">
-            Resume rebuilds the run from its seed and ordered decisions through the game API.
+            {directorSave
+              ? "Resume submits the signed v2 history for backend verification and replay."
+              : "Resume rebuilds the run from its seed and ordered decisions through the game API."}
           </p>
         </div>
         <div className="flex flex-wrap gap-3">

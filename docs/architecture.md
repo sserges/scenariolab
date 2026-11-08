@@ -291,9 +291,9 @@ Identical scenario versions, seeds, histories, and new actions produce identical
 
 Business failures use `ErrorResponse` with `detail.code` and `detail.message`. Unknown scenarios return 404, planned scenarios and version/terminal conflicts return 409, and malformed requests, bad histories, or invalid actions return 422. FastAPI request-validation errors are normalized to `invalid_request`. Route handlers contain replay orchestration only and do not duplicate effect, event, metric, or terminal logic.
 
-### 5.1.1 Startup Survival Director foundation (Brick 9B-1)
+### 5.1.1 Startup Survival Director API and engine foundation (Brick 9B-1)
 
-The optional Director routes are separate from scripted gameplay and are disabled by default with `SCENARIOLAB_DIRECTOR_ENABLED=false`. They currently issue authored fallback proposals only; they do not call `AIProvider`, and they do not add a Director UI or change the version-1 browser save format.
+The optional Director routes are separate from scripted gameplay and are disabled by default with `SCENARIOLAB_DIRECTOR_ENABLED=false`. They issue authored fallback proposals only; they do not call `AIProvider`. Brick 9B-2A adds the optional React mode and version-2 browser save path without changing the version-1 scripted contract.
 
 `POST /api/ai/director/proposal` replays a strict version-2 Director transcript and returns the reconstructed `GameState`, an HMAC-authenticated fallback proposal, and deterministic full-turn previews. `POST /api/ai/director/turn` verifies the current proposal against the same scenario/version, seed, turn, prior state digest, prior transcript digest, and context snapshot; it resolves one selected choice and returns `TurnResult` plus an authenticated receipt. `POST /api/ai/director/replay` reconstructs completed records only. Replay verifies signatures and bindings and never generates content or calls a provider.
 
@@ -301,7 +301,19 @@ The application owns a pinned `startup-survival-director@1.0.0` profile. It limi
 
 Proposals and receipts use canonical UTF-8 JSON, domain-separated SHA-256 digests, HMAC-SHA-256, and a configured key ID. `SCENARIOLAB_DIRECTOR_SIGNING_KEYS` is a JSON key ring whose values contain at least 32 UTF-8 bytes; `SCENARIOLAB_DIRECTOR_ACTIVE_SIGNING_KEY_ID` selects the signer. Retain old keys as verify-only during rotation. Missing signing configuration returns a structured 503; no ephemeral key is created. These keys are separate from `SCENARIOLAB_AI_API_KEY`.
 
-`DirectorReplayHistory` is the backend v2 transcript contract. It accepts at most 12 ordered completed records, caps each signed proposal/decision/receipt record at 4 KiB, and caps the serialized request transcript at 56,000 UTF-8 bytes under the default 65,536-byte middleware limit. The existing version-1 `SavedRun` and `/api/games/*` scripted flow remain in place. Local v2 save UI is deferred to Brick 9B-2; do not auto-convert v1 scripted history. Stateless HMAC replay detects edits and cross-state reuse but cannot prevent restoring an earlier valid prefix, deliberate branching from a valid prefix, or repeated duplicate computation across processes.
+`DirectorReplayHistory` is the backend v2 transcript contract. It accepts at most 12 ordered completed records, caps each signed proposal/decision/receipt record at 4 KiB, and caps the serialized request transcript at 56,000 UTF-8 bytes under the default 65,536-byte middleware limit. The existing version-1 `SavedRun` and `/api/games/*` scripted flow remain in place. The browser does not auto-convert v1 scripted history. Stateless HMAC replay detects edits and cross-state reuse but cannot prevent restoring an earlier valid prefix, deliberate branching from a valid prefix, or repeated duplicate computation across processes.
+
+### 5.1.2 Director UI and version-2 saves (Brick 9B-2A)
+
+Startup Survival presents **Classic Simulation** and **AI Scenario Director** as separate gameplay modes. Classic remains the default selection. Director calls the existing proposal, turn, and replay routes and never calls the briefing route. Its source indicator reports the signed proposal's `fallback` source as “Authored fallback.” The situation card, choice cards, authoritative previews, confirmation, resulting metric changes, curated event, ordered history, charts, and terminal report use reusable React components and the existing Classic/Dark theme tokens. Cybersecurity Crisis and Space Colony remain Coming Soon.
+
+The Director API must be enabled by backend configuration; the default is disabled. The frontend does not infer the flag or bypass it. Selecting Director starts or reconstructs the game through the server, then requests a proposal. A structured `director_disabled` or signing-unavailable response explains that Director cannot start and offers Classic Simulation. The proposal and turn routes validate signatures and exact current state on the backend. React updates metrics, history, and saves only after an accepted turn response.
+
+The single `scenariolab.saved-run` localStorage entry is a strict union of format 1 (Classic) and format 2 (Director). A format-2 record stores `format_version`, `mode`, scenario ID/version, original seed, profile ID/version, and ordered `turn_records`. Each record contains the full signed proposal, selected choice ID, and signed receipt. It contains no cached metrics, status, API keys, signing keys, provider credentials, or unsigned effects. The browser keeps a not-yet-completed proposal only in memory; after reload it submits completed records to `/api/ai/director/replay`, restores authoritative state, and requests a proposal only for the current incomplete turn. The fallback proposal is deterministic for the same run state. It never regenerates situations for completed turns.
+
+On resume, structural validation happens in the browser and signature/chain/replay validation happens in Python. Invalid, tampered, incompatible, or terminal-overrun histories fail without writing to localStorage, so the existing stored save remains untouched. A valid save is replaced only after a successful new run or accepted turn; a new run, restart, or mode change that would replace progress requires confirmation. HMAC replay does not prevent rollback to an earlier valid prefix, and local storage is not cross-device persistence.
+
+The E2E backend sets a test-only signing key and keeps `SCENARIOLAB_AI_ENABLED=false`. No signing key reaches browser code and no provider call is made. Brick 9B-2B live generation is not part of this implementation.
 
 ### 5.2 Frontend authority boundary
 
@@ -317,7 +329,7 @@ The dashboard is definition-driven. KPI cards use server-returned metric metadat
 
 The terminal report reads the authoritative terminal state and final `DecisionRecord`. It presents the engine status and outcome reason, completed turn count, initial and final server metrics, presentation-only differences, the decision/event recap, and the final trend charts. It does not add a score or derive a new outcome.
 
-The MVP stores a single run in browser `localStorage` at key `scenariolab.saved-run`. The exact version-1 payload is:
+Classic mode stores a single run in browser `localStorage` at key `scenariolab.saved-run`. Its exact version-1 payload is:
 
 ```json
 {
@@ -329,7 +341,7 @@ The MVP stores a single run in browser `localStorage` at key `scenariolab.saved-
 }
 ```
 
-Runtime validation requires those fields and stable action/scenario IDs; unknown fields, unsupported save formats, invalid seeds, malformed JSON, and oversized values are rejected. No metrics, status, events, AI narrative, API keys, or provider configuration are stored. A successful fresh start writes an empty action history; each successful turn writes the returned action history. Failed turns do not write, so the last accepted save remains intact.
+Runtime validation requires those fields and stable action/scenario IDs; unknown fields, unsupported save formats, invalid seeds, malformed JSON, and oversized values are rejected. No metrics, status, events, AI narrative, API keys, or provider configuration are stored. A successful fresh start writes an empty action history; each successful turn writes the returned action history. Failed turns do not write, so the last accepted save remains intact. Director mode uses the separate format-2 envelope described above and backend-verified signed replay.
 
 Continue does not trust cached values. The client requests `/api/games/start` with the original seed, verifies the current scenario version, and sends each saved action in order through `/api/games/turn`, using the backend-returned action history for the next replay. The final server response supplies current metrics, history, available decisions, and terminal status. A version mismatch or invalid replay leaves the save unchanged and requires the player to clear it or start a new run. Resuming historical turns does not request AI briefings; a new briefing is requested only after a new accepted decision. When `localStorage` is unavailable, gameplay continues with a visible notice and no saved progress. Saves are local to one browser profile and have no cross-device sync or automatic schema migration.
 

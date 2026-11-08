@@ -143,6 +143,7 @@ export function App() {
         ) : (
           <GameplayScreen
             catalogEntry={selectedScenario.entry}
+            existingSave={saveState.status === "valid" ? saveState.save : null}
             onBack={returnToCatalog}
             onSaveStateChange={setSaveState}
             resumeSave={selectedScenario.resumeSave}

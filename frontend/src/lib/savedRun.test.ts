@@ -1,6 +1,7 @@
 import { expect, test, vi } from "vitest";
 
 import {
+  DIRECTOR_SAVE_FORMAT_VERSION,
   SAVE_FORMAT_VERSION,
   SAVE_STORAGE_KEY,
   clearSavedRun,
@@ -9,6 +10,9 @@ import {
   type SavedRun,
   type StorageLike,
 } from "./savedRun";
+import type { SavedDirectorRun } from "./savedRun";
+import { directorHistoryFixture, turnResponseFor, signedProposalFor } from "../test/directorFixtures";
+import { gameStartFixture } from "../test/scenarioFixtures";
 
 function memoryStorage(initial: Record<string, string> = {}): StorageLike {
   const values = new Map(Object.entries(initial));
@@ -78,4 +82,52 @@ test("clears a saved run only when storage accepts the removal", () => {
   const storage = memoryStorage({ [SAVE_STORAGE_KEY]: JSON.stringify(save) });
   expect(clearSavedRun(storage)).toBe(true);
   expect(readSavedRun(storage)).toEqual({ status: "missing" });
+});
+
+test("round-trips the strict v2 signed Director history envelope", () => {
+  const record = turnResponseFor(signedProposalFor(gameStartFixture.state)).turn_record;
+  const directorSave: SavedDirectorRun = {
+    ...directorHistoryFixture([record]),
+    format_version: DIRECTOR_SAVE_FORMAT_VERSION,
+  };
+  const storage = memoryStorage();
+
+  expect(writeSavedRun(directorSave, storage)).toBe("saved");
+  expect(readSavedRun(storage)).toEqual({ status: "valid", save: directorSave });
+  const parsed = JSON.parse(storage.getItem(SAVE_STORAGE_KEY) ?? "null") as Record<string, unknown>;
+  expect(Object.keys(parsed).sort()).toEqual([
+    "format_version",
+    "mode",
+    "profile_id",
+    "profile_version",
+    "scenario_id",
+    "scenario_version",
+    "seed",
+    "turn_records",
+  ]);
+});
+
+test("rejects malformed or reordered v2 records without changing stored data", () => {
+  const first = turnResponseFor(signedProposalFor(gameStartFixture.state)).turn_record;
+  const directorSave: SavedDirectorRun = {
+    ...directorHistoryFixture([first]),
+    format_version: DIRECTOR_SAVE_FORMAT_VERSION,
+  };
+  const storage = memoryStorage({ [SAVE_STORAGE_KEY]: JSON.stringify(directorSave) });
+  const reordered = {
+    ...directorSave,
+    turn_records: [{
+      ...first,
+      proposal: {
+        ...first.proposal,
+        payload: { ...first.proposal.payload, turn: 2 },
+      },
+    }],
+  };
+
+  expect(writeSavedRun(reordered, storage)).toBe("invalid");
+  expect(readSavedRun(storage)).toEqual({ status: "valid", save: directorSave });
+  expect(readSavedRun(memoryStorage({
+    [SAVE_STORAGE_KEY]: JSON.stringify({ ...directorSave, mode: "classic" }),
+  }))).toEqual({ status: "invalid" });
 });

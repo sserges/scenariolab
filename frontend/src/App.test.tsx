@@ -62,6 +62,7 @@ test("opens Startup Survival from the catalog and starts browser gameplay", asyn
 
   fireEvent.click(await screen.findByRole("button", { name: "View Details" }));
   fireEvent.click(await screen.findByRole("button", { name: "Open Simulation" }));
+  fireEvent.click(screen.getByRole("button", { name: /Choose Classic Simulation/ }));
   fireEvent.click(screen.getByRole("button", { name: "Start New Game" }));
 
   expect(await screen.findByText("Key metrics")).toBeInTheDocument();
@@ -89,6 +90,7 @@ test("switches themes during gameplay without resetting simulation progress", as
   render(<App />);
   fireEvent.click(await screen.findByRole("button", { name: "View Details" }));
   fireEvent.click(await screen.findByRole("button", { name: "Open Simulation" }));
+  fireEvent.click(screen.getByRole("button", { name: /Choose Classic Simulation/ }));
   fireEvent.click(screen.getByRole("button", { name: "Start New Game" }));
   await screen.findByText("Key metrics");
 

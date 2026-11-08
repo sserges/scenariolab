@@ -90,6 +90,7 @@ export async function openStartupSimulation(page: Page): Promise<void> {
 
 export async function startStartupSimulation(page: Page): Promise<void> {
   await openStartupSimulation(page);
+  await page.getByRole("button", { name: /Choose Classic Simulation/ }).click();
   const startResponse = page.waitForResponse(
     (response) =>
       response.url() === `${backendUrl}/api/games/start` &&
@@ -101,6 +102,23 @@ export async function startStartupSimulation(page: Page): Promise<void> {
   await expect(page.getByText("Seed 42")).toBeVisible();
 }
 
+export async function startDirectorSimulation(page: Page): Promise<void> {
+  await openStartupSimulation(page);
+  await page.getByRole("button", { name: /Choose AI Scenario Director/ }).click();
+  const startResponse = page.waitForResponse(
+    (response) => response.url() === `${backendUrl}/api/games/start` && response.request().method() === "POST",
+  );
+  const proposalResponse = page.waitForResponse(
+    (response) => response.url() === `${backendUrl}/api/ai/director/proposal` && response.request().method() === "POST",
+  );
+  await page.getByRole("button", { name: "Start Director Simulation" }).click();
+  await expect((await startResponse).ok()).toBeTruthy();
+  await expect((await proposalResponse).ok()).toBeTruthy();
+  await expect(page.getByRole("heading", { name: "Key metrics" })).toBeVisible();
+  await expect(page.getByText("Director situation · turn 1", { exact: true })).toBeVisible();
+  await expect(page.getByText("Authored fallback", { exact: true })).toBeVisible();
+}
+
 export async function playDecision(page: Page, accessibleName: RegExp): Promise<void> {
   // The accessible radio is intentionally visually hidden inside its clickable label.
   await page.getByRole("radio", { name: accessibleName }).check({ force: true });
@@ -110,5 +128,15 @@ export async function playDecision(page: Page, accessibleName: RegExp): Promise<
       response.request().method() === "POST",
   );
   await page.getByRole("button", { name: "Confirm Decision" }).click();
+  await expect((await turnResponse).ok()).toBeTruthy();
+}
+
+export async function playDirectorDecision(page: Page, choiceIndex = 0): Promise<void> {
+  const choice = page.locator('input[name="director-choice"]').nth(choiceIndex);
+  await choice.check({ force: true });
+  const turnResponse = page.waitForResponse(
+    (response) => response.url() === `${backendUrl}/api/ai/director/turn` && response.request().method() === "POST",
+  );
+  await page.getByRole("button", { name: "Confirm Director Choice" }).click();
   await expect((await turnResponse).ok()).toBeTruthy();
 }

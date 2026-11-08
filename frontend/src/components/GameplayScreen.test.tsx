@@ -89,6 +89,8 @@ const oneTurnSave: SavedRun = {
 };
 
 async function startSimulation() {
+  const classicChoice = screen.queryByRole("button", { name: /Choose Classic Simulation/ });
+  if (classicChoice !== null) fireEvent.click(classicChoice);
   fireEvent.click(screen.getByRole("button", { name: "Start New Game" }));
   await screen.findByText("Key metrics");
 }
@@ -216,6 +218,7 @@ test("renders terminal victory, disables decisions, and restarts with fresh stat
     .mockResolvedValueOnce(jsonResponse(fallbackBriefingFixture))
     .mockResolvedValueOnce(jsonResponse({ ...gameStartFixture, seed: 77 }));
   vi.stubGlobal("fetch", fetchMock);
+  vi.spyOn(window, "confirm").mockReturnValue(true);
   renderGameplay();
   await startSimulation();
 
@@ -245,6 +248,7 @@ test("shows a retryable error when the start request fails", async () => {
   vi.stubGlobal("fetch", fetchMock);
   renderGameplay();
 
+  fireEvent.click(screen.getByRole("button", { name: /Choose Classic Simulation/ }));
   fireEvent.click(screen.getByRole("button", { name: "Start New Game" }));
   expect(await screen.findByText("Simulation request failed")).toBeInTheDocument();
   fireEvent.click(screen.getByRole("button", { name: "Try Again" }));
@@ -260,6 +264,7 @@ test("rejects unexpected start response data instead of rendering it", async () 
   );
   renderGameplay();
 
+  fireEvent.click(screen.getByRole("button", { name: /Choose Classic Simulation/ }));
   fireEvent.click(screen.getByRole("button", { name: "Start New Game" }));
 
   expect(await screen.findByText("Simulation request failed")).toBeInTheDocument();

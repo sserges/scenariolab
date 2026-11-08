@@ -12,6 +12,8 @@ The first playable definition is **Startup Survival**: manage a startup over 12 
 
 **Brick 8A: deployment and security readiness** is prepared locally: safe production configuration, request and provider concurrency bounds, container and static-host guidance, and submission documentation are in place. The application has not been deployed. Shared edge rate limiting and origin protection remain required before enabling billable AI on a public endpoint.
 
+**Brick 9B-2A: Director UI and signed save/resume** is complete and verified. Startup Survival offers Classic Simulation and an optional AI Scenario Director mode. Director currently uses authored fallback situations only and remains disabled by default with `SCENARIOLAB_DIRECTOR_ENABLED=false`; it does not call a live AI provider. Version-2 local saves preserve signed Director proposals, choices, receipts, and ordered history while version-1 scripted saves continue unchanged. Live Director generation remains incomplete and is deferred to Brick 9B-2B.
+
 ## Official predefined scenarios
 
 | Scenario | Objective | Status |
@@ -32,7 +34,8 @@ Catalog metadata makes all three concepts discoverable. Only an `available` entr
 - Decision and event history
 - Local save, resume, and restart
 - Win/loss evaluation and an ending report
-- Built-in fallback events when the configured AI provider is unavailable
+- Deterministic fallback briefings when the configured AI provider is unavailable
+- Optional fallback-only AI Scenario Director mode for Startup Survival
 
 Implementation order is Startup Survival first, then Cybersecurity Crisis and Space Colony after the reusable engine and MVP loop are proven. Prompt, document, and URL scenario generation remain stretch work after the predefined MVP is stable.
 
@@ -52,12 +55,12 @@ See [docs/architecture.md](docs/architecture.md) for the contract and trust boun
 ## Demo instructions
 
 1. Start the FastAPI backend and Vite frontend using the local run commands below.
-2. Select **Startup Survival** and start a new game.
-3. Complete at least three decisions, then inspect KPI cards, trend charts, events, briefing source, and the decision timeline.
-4. Reload the browser and choose **Continue Saved Game** to demonstrate replay-based resume.
-5. Continue until the engine ends the run, review the terminal report, then restart.
+2. Select **Startup Survival**, then choose **Classic Simulation** or **AI Scenario Director**. Director is an optional backend-gated mode and uses authored fallback situations only.
+3. Complete at least three decisions, then inspect KPI cards, trend charts, events, source indicators, and the decision timeline.
+4. Reload the browser and choose **Continue Saved Game** to demonstrate replay-based resume. Classic saves replay ordered action IDs; Director saves replay signed records.
+5. Continue until the engine ends the run, review the terminal report, then restart after confirming replacement of saved progress.
 
-The demo works with AI disabled: gameplay remains available and the briefing uses a clearly labelled deterministic fallback. Cybersecurity Crisis and Space Colony are planned and are not playable.
+The demo works with live AI disabled: Classic gameplay and briefings use deterministic behavior, and Director gameplay uses authored fallback situations when its separate feature flag and signing key are configured. Cybersecurity Crisis and Space Colony are Coming Soon and are not playable.
 
 ## AI implementation and assisted-development disclosure
 
@@ -67,7 +70,7 @@ OpenAI Codex was used as a coding assistant for application implementation, test
 
 ## Privacy notes
 
-ScenarioLab has no accounts, authentication, analytics SDK, or user profile fields. The browser save contains only scenario ID/version, seed, and accepted action IDs in local storage. Game requests send those replay inputs to the backend. If live AI is enabled, the backend sends a compact simulation context to the configured provider; do not include personal or confidential information in scenario content. Hosting providers may retain request metadata in operational logs, so review retention and access settings before a public release. The app does not promise provider-side retention behavior.
+ScenarioLab has no accounts, authentication, analytics SDK, or user profile fields. The browser stores one run at a time in local storage. Classic format 1 contains scenario ID/version, seed, and accepted action IDs. Director format 2 contains scenario/version, original seed, mode/profile identity, and completed signed turn records with proposal, selected choice ID, receipt, and ordered history. Neither format stores metrics or status; Director saves contain no signing secrets or provider credentials. Game requests send replay inputs to the backend. If live AI is enabled, the backend sends a compact simulation context to the configured provider; do not include personal or confidential information in scenario content. Hosting providers may retain request metadata in operational logs, so review retention and access settings before a public release. The app does not promise provider-side retention behavior.
 
 ## Known limitations
 
@@ -144,6 +147,9 @@ The API is available at `http://localhost:8000`.
 | `POST /api/games/start` | Start a fresh stateless simulation |
 | `POST /api/games/turn` | Replay prior actions and resolve one new decision |
 | `POST /api/ai/briefing` | Replay completed actions and narrate the latest outcome |
+| `POST /api/ai/director/proposal` | Replay signed Director history and return the current signed fallback proposal and previews |
+| `POST /api/ai/director/turn` | Verify and resolve one selected signed Director choice |
+| `POST /api/ai/director/replay` | Verify signed Director history and reconstruct the authoritative current state |
 
 Planned scenario details return HTTP 409 with `scenario_not_available`; unknown IDs return HTTP 404 with `scenario_not_found`.
 
@@ -176,6 +182,20 @@ The backend uses an OpenAI-compatible Chat Completions endpoint. Copy `backend/.
 Live AI is disabled by default even when a key and model are present. Set `SCENARIOLAB_AI_ENABLED=true` deliberately to enable it; production mode requires an HTTPS frontend origin and HTTPS provider URL, and requires both a key and model when live AI is enabled. Never place the key in `frontend/.env`, a `VITE_` variable, source control, logs, saves, image build arguments, or prompts. The browser cannot select the model or provider URL. Automated tests use mocked providers or fallback-only configuration.
 
 For local live-provider use only, explicitly set `SCENARIOLAB_AI_ENABLED=true` in the ignored backend environment file and provide the configured model and secret key. No automated test requires this setting.
+
+## Optional AI Scenario Director
+
+Director mode is available only for Startup Survival and only when the backend feature flag and HMAC signing configuration are present. The backend flag defaults to false; the frontend always calls the Director API and respects its structured disabled response. `SCENARIOLAB_AI_ENABLED` does not enable Director generation, and the current Director service never invokes a provider. Do not turn on live Director generation in this brick.
+
+For controlled local fallback validation, set these backend-only values:
+
+```text
+SCENARIOLAB_DIRECTOR_ENABLED=true
+SCENARIOLAB_DIRECTOR_ACTIVE_SIGNING_KEY_ID=director-local
+SCENARIOLAB_DIRECTOR_SIGNING_KEYS={"director-local":"<at least 32 random UTF-8 bytes>"}
+```
+
+Signing keys stay on the backend. The browser never receives them. The v2 save is replay-verified by `/api/ai/director/replay`; after reload, only the current incomplete turn may request its deterministic fallback proposal again. Completed turns are never regenerated. The separate live provider integration, Brick 9B-2B, remains incomplete.
 
 `POST /api/ai/briefing` accepts only replay identity, never metrics or narrative claims:
 
@@ -242,6 +262,8 @@ npm run test:e2e:report
 ```
 
 The E2E fixture injects seed `42` into the real game-start request for repeatability while all start and turn calculations still execute in FastAPI. It intercepts every browser `POST /api/ai/briefing`, validates the replay identity/history, and returns a schema-valid mock briefing. The Playwright backend process also overrides `SCENARIOLAB_AI_API_KEY` to empty as defense in depth. The real key in ignored `backend/.env` is never read into the E2E provider, printed, recorded in traces, or sent over the network. Tests that expect a briefing assert the mocked headline and call count, so a missing interception fails rather than silently passing.
+
+The Playwright backend receives a fixed test-only Director signing key from `playwright.config.ts`; it is server-side test configuration and is never sent to the browser. Its AI provider remains disabled. The suite exercises signed proposal/turn/replay endpoints, a three-turn reload/resume journey, a tampered-record rejection, a disabled-Director response, Classic regression journeys, and mobile theme layouts.
 
 If Chromium is missing or Playwright reports an executable error, run:
 

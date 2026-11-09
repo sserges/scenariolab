@@ -18,6 +18,8 @@ def test_safe_defaults_disable_live_ai_and_bound_requests() -> None:
     assert settings.director_signing_keys == {}
     assert settings.max_request_body_bytes == 65_536
     assert settings.ai_max_concurrent_provider_calls == 2
+    assert settings.ai_max_response_tokens == 500
+    assert settings.director_max_response_tokens == 800
 
 
 def test_director_signing_key_ring_is_separate_and_supports_rotation(
@@ -84,6 +86,18 @@ def test_production_environment_variables_are_parsed(monkeypatch: pytest.MonkeyP
     assert settings.ai_max_concurrent_provider_calls == 1
 
 
+def test_director_response_token_budget_is_configurable_and_bounded(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("SCENARIOLAB_DIRECTOR_MAX_RESPONSE_TOKENS", "700")
+
+    settings = Settings(_env_file=None)
+
+    assert settings.director_max_response_tokens == 700
+    with pytest.raises(ValidationError):
+        Settings(_env_file=None, director_max_response_tokens=801)
+
+
 def test_checked_in_production_environment_template_parses() -> None:
     template = Path(__file__).resolve().parents[1] / ".env.production.example"
 
@@ -95,6 +109,7 @@ def test_checked_in_production_environment_template_parses() -> None:
     assert settings.max_request_body_bytes == 65_536
     assert settings.ai_provider_calls_per_minute == 5
     assert settings.ai_max_concurrent_provider_calls == 1
+    assert settings.director_max_response_tokens == 800
 
 
 def test_production_settings_reject_http_frontend_origin() -> None:

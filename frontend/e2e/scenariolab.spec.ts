@@ -223,7 +223,7 @@ test("mobile viewport keeps essential gameplay controls visible", async ({ page 
   await page.screenshot({ path: "test-results/brick7-mobile.png", fullPage: true });
 });
 
-test("Director completes three signed turns, reloads, verifies replay, and continues at turn four", async ({ page, aiBriefingMock }) => {
+test("Director restores the signed pending proposal after reload and continues at turn four", async ({ page, aiBriefingMock }) => {
   const proposalHistoryLengths: number[] = [];
   page.on("request", (request) => {
     if (request.url() === `${backendUrl}/api/ai/director/proposal` && request.method() === "POST") {
@@ -249,6 +249,7 @@ test("Director completes three signed turns, reloads, verifies replay, and conti
   expect(Object.keys(savedBeforeReload).sort()).toEqual([
     "format_version",
     "mode",
+    "pending_proposal",
     "profile_id",
     "profile_version",
     "scenario_id",
@@ -263,17 +264,16 @@ test("Director completes three signed turns, reloads, verifies replay, and conti
   await page.reload();
   await expect(page.getByRole("button", { name: "Continue Saved Game" })).toBeVisible();
   const replayResponse = page.waitForResponse((response) => response.url() === `${backendUrl}/api/ai/director/replay`);
-  const restoredProposal = page.waitForResponse((response) => response.url() === `${backendUrl}/api/ai/director/proposal`);
   await page.getByRole("button", { name: "Continue Saved Game" }).click();
   await expect((await replayResponse).ok()).toBeTruthy();
-  await expect((await restoredProposal).ok()).toBeTruthy();
   await expect(page.getByRole("heading", { name: "Turn 4 of 12" })).toBeVisible();
   await expect(page.locator("[data-testid='director-history']")).toHaveCount(0);
   await expect(page.locator("ol > li")).toHaveCount(3);
+  expect(proposalHistoryLengths).toEqual([0, 1, 2, 3]);
 
   await playBestCashDirectorDecision(page);
   await expect(page.getByRole("heading", { name: "Turn 4 resolved" })).toBeVisible();
-  expect(proposalHistoryLengths).toEqual([0, 1, 2, 3, 3, 4]);
+  expect(proposalHistoryLengths).toEqual([0, 1, 2, 3, 4]);
   await expect.poll(() => aiBriefingMock.calls).toBe(0);
 
   for (let turn = 5; turn <= 12; turn += 1) {
@@ -293,6 +293,7 @@ test("Director completes three signed turns, reloads, verifies replay, and conti
 test("tampered signed history is rejected while the valid local save remains intact", async ({ page }) => {
   await startDirectorSimulation(page);
   await playDirectorDecision(page, 0);
+  await expect(page.getByText("Director situation · turn 2", { exact: true })).toBeVisible();
   const validSerializedSave = await page.evaluate(() => window.localStorage.getItem("scenariolab.saved-run"));
   expect(validSerializedSave).not.toBeNull();
 

@@ -16,12 +16,68 @@ from scenariolab_api.domain.models import (
 from scenariolab_api.domain.enums import GameStatus
 from scenariolab_api.engine.models import TurnResult
 from scenariolab_api.director.canonical import canonical_json_bytes
+from scenariolab_api.director.profile import DirectorProfile
 
 DirectorText = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1)]
 Digest = Annotated[str, StringConstraints(pattern=r"^[a-f0-9]{64}$")]
 DirectorSeed = Annotated[StrictInt, Field(ge=0, le=9_007_199_254_740_991)]
 MAX_TURN_RECORD_BYTES = 4_096
 MAX_HISTORY_BYTES = 56_000
+MAX_PENDING_PROPOSAL_BYTES = 8_192
+
+
+class DirectorGeneratedSituation(FrozenModel):
+    beat_id: Literal["acquisition", "supplier", "retention", "partnership"]
+    headline: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=100)]
+    description: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=200)]
+
+
+class DirectorPromptMetric(FrozenModel):
+    metric_id: StableId
+    title: Annotated[str, StringConstraints(max_length=80)]
+    unit: Annotated[str, StringConstraints(max_length=24)]
+    value: StrictInt
+    min_value: StrictInt
+    max_value: StrictInt
+
+
+class DirectorPromptDecision(FrozenModel):
+    turn: PositiveInt
+    action_title: Annotated[str, StringConstraints(max_length=100)]
+    resulting_status: GameStatus
+    outcome_reason: StableId
+    event_title: Annotated[str, StringConstraints(max_length=100)] | None = None
+    changed_metrics: tuple[StableId, ...] = Field(max_length=7)
+
+
+class DirectorPromptEvent(FrozenModel):
+    event_id: StableId
+    title: Annotated[str, StringConstraints(max_length=100)]
+    description: Annotated[str, StringConstraints(max_length=240)]
+
+
+class DirectorPromptObjective(FrozenModel):
+    condition_id: StableId
+    title: Annotated[str, StringConstraints(max_length=100)]
+    description: Annotated[str, StringConstraints(max_length=240)]
+
+
+class DirectorGenerationContext(FrozenModel):
+    """Bounded, sanitized state and policy facts sent to the provider."""
+
+    scenario_id: StableId
+    scenario_version: ScenarioVersion
+    scenario_title: Annotated[str, StringConstraints(max_length=100)]
+    scenario_objective: Annotated[str, StringConstraints(max_length=240)]
+    turn: PositiveInt
+    remaining_turns: StrictInt = Field(ge=0, le=10_000)
+    metrics: tuple[DirectorPromptMetric, ...] = Field(min_length=1, max_length=16)
+    recent_decisions: tuple[DirectorPromptDecision, ...] = Field(max_length=3)
+    recent_director_families: tuple[Literal["acquisition", "supplier", "retention", "partnership"], ...] = Field(max_length=3)
+    recent_headline_digests: tuple[Digest, ...] = Field(max_length=12)
+    relevant_curated_events: tuple[DirectorPromptEvent, ...] = Field(max_length=16)
+    objectives: tuple[DirectorPromptObjective, ...] = Field(max_length=16)
+    policy: DirectorProfile
 
 
 class DirectorEffect(FrozenModel):
@@ -43,6 +99,13 @@ class DirectorChoiceCandidate(FrozenModel):
         if len(metric_ids) != len(set(metric_ids)):
             raise ValueError("a choice may target each metric only once")
         return self
+
+
+class DirectorGeneratedProposal(FrozenModel):
+    """Provider-owned candidate content; IDs and authority are assigned by the backend."""
+
+    situation: DirectorGeneratedSituation
+    choices: tuple[DirectorChoiceCandidate, ...] = Field(min_length=2, max_length=4)
 
 
 class DirectorSituation(FrozenModel):
@@ -95,7 +158,7 @@ class DirectorProposalPayload(FrozenModel):
     previous_history_digest: Digest
     context_digest: Digest
     context_snapshot: DirectorContextSnapshot
-    source: Literal["fallback"] = "fallback"
+    source: Literal["live", "fallback"]
     situation: DirectorSituation
     choices: tuple[DirectorChoice, ...] = Field(min_length=2, max_length=4)
 
@@ -211,7 +274,16 @@ class DirectorProposalRequest(DirectorReplayHistory):
 
 
 class DirectorReplayRequest(DirectorReplayHistory):
-    pass
+    pending_proposal: SignedDirectorProposal | None = None
+
+    @model_validator(mode="after")
+    def enforce_pending_proposal_size(self) -> Self:
+        if (
+            self.pending_proposal is not None
+            and len(canonical_json_bytes(self.pending_proposal)) > MAX_PENDING_PROPOSAL_BYTES
+        ):
+            raise ValueError("pending Director proposal exceeds the byte limit")
+        return self
 
 
 class DirectorTurnRequest(DirectorReplayHistory):
@@ -226,6 +298,8 @@ class DirectorReplayResponse(FrozenModel):
     state: GameState
     latest_turn_record: DirectorTurnRecord | None
     latest_turn_result: TurnResult | None
+    pending_proposal: SignedDirectorProposal | None = None
+    pending_previews: tuple[DirectorChoicePreview, ...] = ()
 
 
 class DirectorProposalResponse(FrozenModel):

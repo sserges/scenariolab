@@ -10,7 +10,7 @@ The official Devpost deadline is confirmed as November 27, 2026 at 5:00 PM EST. 
 - ✅ **Brick 9A — AI Scenario Director architecture — Complete:** repository contracts and security controls were reviewed; the Startup Survival-only Director design, signed replay records, APIs, fallback, risks, acceptance criteria, and Brick 9B plan are documented in `docs/ai-scenario-director.md`.
 - ✅ **Brick 9B-1 — Director engine, signed records, and deterministic replay — Complete:** fallback-only Startup Survival proposals, profile-bounded effects, shared transient engine path, HMAC proposal/receipt verification, stateless replay APIs, and tamper rejection are verified by 98 Pytest, 52 Vitest, production build, and 14 Playwright tests.
 - ✅ **Brick 9B-2A — Director UI and v2 save/resume — Complete:** optional Startup Survival mode selection, fallback-only signed proposals/choices/previews/history, strict v2 save/replay, v1 scripted compatibility, disabled-mode Classic fallback, confirmation before replacing progress, and terminal report reuse. Verified by 98 Pytest, 64 Vitest, production build, 19 Playwright Chromium tests, a headed Director smoke test, three-turn reload/replay, tamper rejection, and desktop/mobile light/dark screenshot review. No live AI calls were made.
-- ⬜ **Brick 9B-2B — Live Director generation — Not started:** deferred for separate review. Keep Director fallback-only; any provider path must require both backend AI flags and approved shared cost/origin controls.
+- ✅ **Brick 9B-2B — Live Director generation and mocked testing — Complete:** Startup Survival proposal endpoint supports strict provider candidates behind independent default-off flags, atomic profile/engine validation, signed replay, deterministic fallback, and pending-proposal save/restore. The diagnostics revision distinguishes transport, timeout, truncation, JSON/schema, profile, affordability, and semantic rejection while preserving fallback. Verified with 116 Pytest, 68 Vitest, production build, and 19 Playwright Chromium tests. One authorized live request returned HTTP 200, but its candidate was rejected and fallback returned; live integration remains unverified. Public billable generation remains blocked by shared rate limiting, direct-origin protection, and provider spending controls.
 
 - ✅ **Brick 1 — Complete:** repository policy, product architecture, scenario contract, roadmap, and compliance tracker are documented.
 - ✅ **Brick 2 — Complete:** React/Vite/Tailwind application shell, FastAPI health service, environment configuration, CORS, dependency locks, frontend tests, backend tests, and production frontend build are verified.
@@ -62,18 +62,19 @@ The official Devpost deadline is confirmed as November 27, 2026 at 5:00 PM EST. 
 
 ## Brick 9 delivery milestones
 
-Brick 9A, 9B-1, and 9B-2A are complete. Brick 9B-2A is optional to the November 25 submission and stays backend-disabled by default. Brick 9B-2B live generation has not started and is not part of the current release. Brick 8B public deployment can proceed independently and must not wait for Brick 9.
+Brick 9A, 9B-1, 9B-2A, and the mocked 9B-2B implementation are complete. Director mode and live generation both stay backend-disabled by default. One authorized smoke request fell back after candidate rejection; diagnostics were improved and verified with mocked responses only. Live integration remains unverified. Brick 8B public deployment can proceed independently and must not wait for Brick 9.
 
 | Target date | Brick 9 milestone | Exit evidence |
 | --- | --- | --- |
 | Nov 6 | ✅ **Brick 9A:** complete architecture review | docs/ai-scenario-director.md covers current contracts, proposed policy and APIs, signed replay, lifecycle, threat mitigations, test plan, and 9B scope |
 | Nov 6 | ✅ **Brick 9B-1:** implement and verify fallback Director engine/replay foundation | 98 Pytest, 52 Vitest, TypeScript production build, 14 Playwright; three-turn fallback replay and tampered-record rejection pass |
 | Nov 7 | ✅ **Brick 9B-2A:** Director UI and signed v2 save/resume | 98 Pytest, 64 Vitest, production build, 19 Playwright Chromium, headed Director smoke, three-turn reload/replay, tamper rejection, and desktop/mobile light/dark screenshots pass |
-| Nov 16–18 | ⬜ **Brick 9B-2B:** consider provider-owned structured proposals behind both backend flags | Not started; candidate JSON must validate against the pinned profile; provider tests remain mocked |
-| Nov 19–20 | ⬜ **Brick 9B-2B:** provider security and cost review | Requires shared edge/origin controls and provider budget limits before any live generation work |
-| Nov 21–22 | ⬜ **Brick 9B-2B:** decide whether live generation remains deferred | Keep this brick incomplete until review authorizes and verifies provider integration |
+| Nov 8 (completed ahead of target) | ✅ **Brick 9B-2B:** implement and diagnose mocked provider-owned proposals | 116 Pytest, 68 Vitest, production build, and 19 Chromium E2E tests pass; provider path is mocked and all live flags default off |
+| Nov 8 (completed ahead of target) | ✅ **Brick 9B-2B:** pending proposal persistence and replay | Signed pending proposal is restored through replay with recomputed authoritative previews and no generation request |
+| Nov 8 (completed ahead of target) | ✅ **Brick 9B-2B:** desktop/mobile and regression verification | Production build and 19 Playwright Chromium tests pass; no real provider calls |
+| Attempted; remains unverified | ⬜ **Brick 9B-2B:** one controlled live-provider smoke test | One HTTP 200 response fell back after candidate rejection; no retries or further live requests |
 | Nov 23 | ⬜ **Brick 9B:** security and deployment-readiness review | Request-size and per-process limits remain; public live generation stays disabled pending shared edge controls, origin protection, and provider spend controls |
-| Nov 24 | ⬜ **Brick 9B:** release freeze or defer | Keep 9B-2B incomplete unless separately reviewed and every acceptance criterion passes |
+| Nov 24 | ⬜ **Brick 9B:** release freeze or defer | Keep live-provider smoke and public enablement pending unless separately reviewed; Brick 8B remains an independent unchecked deployment gate |
 | Nov 25 | **Internal submission:** choose the verified release candidate | Director may be included only if Brick 9B passed every gate; Brick 8B proceeds on its own schedule |
 
 ## Scope gates
@@ -84,7 +85,7 @@ The existing MVP is complete when Startup Survival supports 12 authoritative tur
 
 ### Stretch gate
 
-Brick 9B remains optional before the submission freeze. Brick 9B-2A ships only fallback-backed Director play; live generation (9B-2B), prompt-to-scenario generation, document/URL ingestion, and support for additional scenarios remain out of scope until separately reviewed. The Director stays disabled by default.
+Brick 9B remains optional before the submission freeze. Brick 9B-2A and the mocked 9B-2B integration are implemented; live provider smoke and public billable generation are still gated. Prompt-to-scenario generation, document/URL ingestion, and support for additional scenarios remain out of scope until separately reviewed. The Director and live generation stay disabled by default.
 
 ## Schedule risks
 

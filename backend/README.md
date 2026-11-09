@@ -1,6 +1,6 @@
 # ScenarioLab API and Engine
 
-The package contains the FastAPI scenario catalog, stateless game transport, pure deterministic simulation engine, outcome-grounded AI briefing service, and the fallback-only Brick 9B-1 Director foundation. `POST /api/games/start` initializes a scripted run; `POST /api/games/turn` reconstructs prior state and resolves one new action; `POST /api/ai/briefing` independently reconstructs a completed history and narrates only its latest recorded outcome. Director proposal, turn, and replay routes use signed v2 transcripts. No server-side game session is stored.
+The package contains the FastAPI scenario catalog, stateless game transport, pure deterministic simulation engine, outcome-grounded AI briefing service, and the signed Director foundation with optional live candidates and deterministic fallback. `POST /api/games/start` initializes a scripted run; `POST /api/games/turn` reconstructs prior state and resolves one new action; `POST /api/ai/briefing` independently reconstructs a completed history and narrates only its latest recorded outcome. Director proposal, turn, and replay routes use signed v2 transcripts. No server-side game session is stored.
 
 ## AI service boundary
 
@@ -8,6 +8,7 @@ The package contains the FastAPI scenario catalog, stateless game transport, pur
 
 - `grounding.py` converts a validated `ScenarioDefinition` and immutable `TurnResult` into established facts.
 - `provider.py` implements the `AIProvider` protocol with an OpenAI-compatible `/chat/completions` adapter.
+- The same adapter implements a separate strict Director candidate method; it returns text/effect candidates only, never state or outcomes.
 - `models.py` strictly validates the five bounded narrative fields and the internal grounding context.
 - `service.py` applies live-response caching, a per-caller provider-attempt limit, sanitized failure handling, and deterministic fallback.
 
@@ -25,15 +26,17 @@ SCENARIOLAB_AI_MODEL=gpt-4.1-mini
 SCENARIOLAB_AI_BASE_URL=https://api.openai.com/v1
 SCENARIOLAB_AI_TIMEOUT_SECONDS=10
 SCENARIOLAB_AI_MAX_RESPONSE_TOKENS=500
+SCENARIOLAB_DIRECTOR_MAX_RESPONSE_TOKENS=800
 SCENARIOLAB_AI_PROVIDER_CALLS_PER_MINUTE=20
 SCENARIOLAB_AI_MAX_CONCURRENT_PROVIDER_CALLS=2
 SCENARIOLAB_DIRECTOR_ENABLED=false
+SCENARIOLAB_DIRECTOR_LIVE_GENERATION_ENABLED=false
 SCENARIOLAB_MAX_REQUEST_BODY_BYTES=65536
 ```
 
 Copy `.env.example` to the ignored `.env` for local configuration. Live AI stays disabled unless `SCENARIOLAB_AI_ENABLED=true`, a key, and a model are configured. Production additionally requires HTTPS for the exact frontend origin and provider endpoint. The provider URL is operator configuration and is never accepted from a browser request. Never put credentials in frontend variables, logs, fixtures, prompts, saved games, Docker build arguments, or tracked files.
 
-Timeout is bounded to 1–30 seconds, response tokens to 100–800, and provider attempts to 1–120 per minute per caller in each application process. The default limits are 10 seconds, 500 tokens, and 20 attempts. Requests are not retried. Provider bodies larger than 64 KiB are rejected. A bounded 256-entry in-memory cache prevents repeated live calls for the same reconstructed outcome.
+Timeout is bounded to 1–30 seconds, response tokens to 100–800, and provider attempts to 1–120 per minute per caller in each application process. Defaults are 10 seconds, 500 tokens for briefings, 800 tokens for Director proposals, and 20 attempts. Requests are not retried. Provider bodies larger than 64 KiB are rejected. A bounded 256-entry in-memory cache prevents repeated live calls for the same reconstructed outcome.
 
 ## Briefing API
 
@@ -65,9 +68,9 @@ All five narrative strings are required, unknown fields are rejected, and field 
 
 The endpoint rejects unknown or planned scenarios, version mismatches, empty histories, histories over the scenario turn limit, and impossible replays before any provider call. It accepts no client-authored state. Provider absence, timeout, HTTP/rate-limit errors, invalid or oversized JSON, schema failure, and unsupported numeric claims return HTTP 200 with `source: "fallback"`. Raw provider failures and credentials are never returned.
 
-## Director API foundation (Brick 9B-1)
+## Director API and live candidate path (Bricks 9B-1 and 9B-2B)
 
-This stage supports only authored deterministic Startup Survival proposals. The Director never calls the AI provider, regardless of `SCENARIOLAB_AI_ENABLED`; no Director UI is connected. The routes return HTTP 503 with `director_disabled` unless `SCENARIOLAB_DIRECTOR_ENABLED=true` is explicitly configured.
+Director supports only Startup Survival. Mode access requires `SCENARIOLAB_DIRECTOR_ENABLED=true`. Live candidates additionally require `SCENARIOLAB_DIRECTOR_LIVE_GENERATION_ENABLED=true`, `SCENARIOLAB_AI_ENABLED=true`, provider credentials, and a signing key ring. All flags default to false. Otherwise the API uses deterministic authored proposals; no provider failure interrupts a valid run.
 
 Director signing is separate from the AI provider credential. Configure a random key ring through the hosting environment, for example:
 
@@ -93,9 +96,15 @@ The v2 request identity includes format version, `mode: "director"`, `startup-su
 }
 ```
 
-- `POST /api/ai/director/proposal` replays the completed prefix, then returns the current state, one signed fallback proposal, and deterministic previews. It does not advance the game.
+- `POST /api/ai/director/proposal` replays the completed prefix, then returns the current state, one signed live or fallback proposal, and deterministic previews. It does not advance the game. Invalid live output is rejected atomically and falls back without editing effects.
 - `POST /api/ai/director/turn` accepts that same prefix, the signed proposal, and one `selected_choice_id`; it verifies state/history bindings, resolves one choice through the shared engine path, and returns the authoritative `TurnResult` and signed `turn_record`.
-- `POST /api/ai/director/replay` verifies and reconstructs completed records only. It never selects or regenerates a proposal and never calls a provider.
+- `POST /api/ai/director/replay` verifies and reconstructs completed records, and optionally verifies/previews a signed pending proposal. It never selects or regenerates a proposal and never calls a provider.
+
+Director requests strict Chat Completions JSON Schema output derived from the Pydantic candidate contract. The backend still performs profile/state validation and engine previews. `finish_reason: "length"` is classified as truncation. Sanitized diagnostics distinguish provider transport/timeout, truncation, invalid JSON/schema, metric/operator, effect-limit, affordability, and other semantic failures; no provider text or context is logged. Director has a separate `SCENARIOLAB_DIRECTOR_MAX_RESPONSE_TOKENS` budget, default 800 and bounded to 100–800. The prior 500-token live response used 494 completion tokens, but its finish reason was not captured, so truncation is unconfirmed. The separate 800-token default gives structured proposals more headroom without raising the AI briefing cap.
+
+Director context/response payloads are limited to 12 KiB/16 KiB. Each proposal request makes at most one provider attempt, uses the configured timeout, output-token, per-caller rate, and concurrency limits, and caches semantically valid exact-context candidates in bounded process-local memory. Provider errors are sanitized and fall back deterministically. These local controls are not a global cost ceiling; public generation remains disabled until shared rate limiting, origin-bypass protection, and provider spending controls are in place. Set `SCENARIOLAB_DIRECTOR_LIVE_GENERATION_ENABLED=false` (or `SCENARIOLAB_AI_ENABLED=false`) and restart API processes to disable generation immediately.
+
+Format-2 browser saves may contain one signed, unselected `pending_proposal`. Replay verifies its HMAC and state, turn, seed, version, and history binding, then recalculates authoritative previews. Reload does not issue another LLM request when a valid pending proposal is restored. Old format-2 saves without a pending proposal remain supported.
 
 Proposal and receipt payloads use sorted-key compact UTF-8 JSON and domain-separated HMAC-SHA-256. Constant-time MAC comparison is used. The proposal binds all candidate effects to the scenario/version, seed, turn, context, prior state digest, and prior history digest. The receipt additionally binds the selected choice and resulting authoritative state/result digests. The application validates records before `resolve_transient_action`; the engine then applies effects, recurring rules, at most one seeded curated event, and terminal evaluation in its normal order. The Director situation itself is not a curated event and has no numeric effect.
 

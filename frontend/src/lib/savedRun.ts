@@ -1,4 +1,4 @@
-import { isDirectorTurnRecord, type DirectorReplayHistory } from "./api";
+import { isDirectorTurnRecord, isSignedDirectorProposal, type DirectorReplayHistory, type SignedDirectorProposal } from "./api";
 
 export const SAVE_FORMAT_VERSION = 1;
 export const DIRECTOR_SAVE_FORMAT_VERSION = 2;
@@ -18,6 +18,7 @@ export interface SavedScriptedRun {
 export interface SavedDirectorRun extends DirectorReplayHistory {
   format_version: typeof DIRECTOR_SAVE_FORMAT_VERSION;
   mode: "director";
+  pending_proposal?: SignedDirectorProposal;
 }
 
 export type SavedRun = SavedScriptedRun | SavedDirectorRun;
@@ -110,7 +111,7 @@ export function isSavedDirectorRun(value: unknown): value is SavedDirectorRun {
     return false;
   }
   const keys = Object.keys(value).sort();
-  const expectedKeys = [
+  const requiredKeys = [
     "format_version",
     "mode",
     "profile_id",
@@ -120,9 +121,12 @@ export function isSavedDirectorRun(value: unknown): value is SavedDirectorRun {
     "seed",
     "turn_records",
   ];
+  const hasPendingProposal = Object.hasOwn(value, "pending_proposal");
+  const keysMatch = keys.length === requiredKeys.length + (hasPendingProposal ? 1 : 0) &&
+    requiredKeys.every((key) => keys.includes(key)) &&
+    (!hasPendingProposal || keys.includes("pending_proposal"));
   return (
-    keys.length === expectedKeys.length &&
-    keys.every((key, index) => key === expectedKeys[index]) &&
+    keysMatch &&
     value.format_version === DIRECTOR_SAVE_FORMAT_VERSION &&
     value.mode === "director" &&
     isStableId(value.scenario_id) &&
@@ -147,6 +151,7 @@ export function isSavedDirectorRun(value: unknown): value is SavedDirectorRun {
       record.receipt.payload.profile_id === value.profile_id &&
       record.receipt.payload.profile_version === value.profile_version
     ) &&
+    (!hasPendingProposal || isSignedDirectorProposal(value.pending_proposal)) &&
     byteLength(value) <= MAX_DIRECTOR_SAVE_BYTES
   );
 }

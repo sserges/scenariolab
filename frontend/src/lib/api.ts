@@ -227,7 +227,7 @@ export interface DirectorProposalPayload {
   previous_history_digest: string;
   context_digest: string;
   context_snapshot: DirectorContextSnapshot;
-  source: "fallback";
+  source: "live" | "fallback";
   situation: DirectorSituation;
   choices: DirectorChoice[];
 }
@@ -290,6 +290,10 @@ export interface DirectorReplayHistory {
   turn_records: DirectorTurnRecord[];
 }
 
+export interface DirectorReplayRequest extends DirectorReplayHistory {
+  pending_proposal?: SignedDirectorProposal | null;
+}
+
 export interface DirectorChoicePreviewResponse {
   choice_id: string;
   metric_changes: MetricChange[];
@@ -315,6 +319,8 @@ export interface DirectorReplayResponse {
   state: GameState;
   latest_turn_record: DirectorTurnRecord | null;
   latest_turn_result: TurnResult | null;
+  pending_proposal?: SignedDirectorProposal | null;
+  pending_previews?: DirectorChoicePreviewResponse[];
 }
 
 export interface DirectorTurnResponse {
@@ -447,7 +453,7 @@ export async function playDirectorTurn(
 }
 
 export async function replayDirectorRun(
-  request: DirectorReplayHistory,
+  request: DirectorReplayRequest,
   signal?: AbortSignal,
 ): Promise<DirectorReplayResponse> {
   const body = await requestJson("/api/ai/director/replay", "POST", request, signal);
@@ -609,7 +615,9 @@ function isDirectorReplayResponse(value: unknown): value is DirectorReplayRespon
     isSeed(value.seed) &&
     isGameState(value.state) &&
     (value.latest_turn_record === null || isDirectorTurnRecord(value.latest_turn_record)) &&
-    (value.latest_turn_result === null || isTurnResult(value.latest_turn_result))
+    (value.latest_turn_result === null || isTurnResult(value.latest_turn_result)) &&
+    (value.pending_proposal === undefined || value.pending_proposal === null || isSignedDirectorProposal(value.pending_proposal)) &&
+    (value.pending_previews === undefined || (Array.isArray(value.pending_previews) && value.pending_previews.every(isDirectorChoicePreview)))
   );
 }
 
@@ -648,7 +656,7 @@ export function isSignedDirectorProposal(value: unknown): value is SignedDirecto
     isDigest(payload.previous_history_digest) &&
     isDigest(payload.context_digest) &&
     isDirectorContext(payload.context_snapshot) &&
-    payload.source === "fallback" &&
+    (payload.source === "fallback" || payload.source === "live") &&
     isDirectorSituation(payload.situation) &&
     Array.isArray(payload.choices) &&
     payload.choices.length >= 2 && payload.choices.length <= 4 &&

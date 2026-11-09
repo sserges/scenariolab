@@ -26,7 +26,8 @@ def create_director_proposal(
     request: DirectorProposalRequest,
     http_request: Request,
 ) -> DirectorProposalResponse:
-    return _service(http_request).propose(request)
+    caller_key = http_request.client.host if http_request.client is not None else "unknown"
+    return _service(http_request).propose(request, caller_key=caller_key)
 
 
 @router.post("/turn", response_model=DirectorTurnResponse, responses=DIRECTOR_ERRORS)

@@ -164,6 +164,8 @@ test("shows a distinct accessible keyboard focus indicator in both themes", asyn
     });
     await page.keyboard.press("Tab");
     await expect(toggle).toBeFocused();
+    // The focus outline color transitions with the theme tokens.
+    await page.waitForTimeout(200);
     const focusStyle = await toggle.evaluate((element) => {
       const style = getComputedStyle(element);
       return { width: style.outlineWidth, style: style.outlineStyle, color: style.outlineColor };

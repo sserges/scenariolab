@@ -1,14 +1,14 @@
 # AI Scenario Director — Architecture and Brick 9B Foundation
 
-**Status:** Bricks 9A, 9B-1, and 9B-2A are complete. Brick 9B-2A passed the complete backend Pytest suite (98), frontend Vitest suite (64), TypeScript production build, full Chromium suite (19), headed Director smoke, three-turn reload/signed replay, tampered-history rejection, and desktop/mobile theme screenshot review. Brick 9B-2B live generation and public deployment remain incomplete.
+**Status:** Bricks 9A, 9B-1, 9B-2A, and the mocked implementation of 9B-2B are complete. One authorized live request returned HTTP 200, but its candidate was rejected and authored fallback returned; live generation remains unverified. Diagnostics changes are mocked-only. Brick 8B public deployment remains unchecked.
 
 **Scope:** Startup Survival only. Existing scripted gameplay remains the compatibility path. Cybersecurity Crisis, Space Colony, and user-created scenarios are out of scope.
 
 ## Recommendation
 
-The optional Director mode returns one context-aware situation and two to four decision choices for the current reconstructed state. The server validates choices against the versioned Startup Survival policy, previews them with the deterministic engine, and signs the approved proposal. The player chooses one option; the server verifies it against the exact replay, applies it through the engine, evaluates scripted events and terminal rules, and signs a receipt. Brick 9B-2A presents this flow in React using authored fallback proposals only; it does not connect the live provider.
+The optional Director mode returns one context-aware situation and two to four decision choices for the current reconstructed state. The server validates choices against the versioned Startup Survival policy, previews them with the deterministic engine, and signs the approved proposal. The player chooses one option; the server verifies it against the exact replay, applies it through the engine, evaluates scripted events and terminal rules, and signs a receipt. The React flow supports live provider candidates behind independent off-by-default flags and authored deterministic fallback.
 
-The browser stores completed signed proposals and receipts as replay inputs. It keeps a pending proposal in memory, then requests the current incomplete turn again after resume. The backend verifies and replays completed inputs and never accepts browser-supplied metrics, status, events, or outcomes.
+The browser stores completed signed proposals and receipts as replay inputs plus an optional signed, unselected pending proposal. On reload, the backend verifies and replays completed inputs, verifies the pending proposal against the reconstructed run, and returns it with newly computed authoritative previews without making an LLM request. The backend never accepts browser-supplied metrics, status, events, or outcomes.
 
 Use HMAC-SHA-256 records, canonical JSON, and a versioned server key ring. This needs no database for outcome integrity. It does **not** prevent a user from restoring an earlier, still-valid prefix of their local save; that requires server-held monotonic state. It also cannot guarantee cross-replica proposal deduplication or a hard per-run provider-call ceiling without shared state. Those limits are acceptable for the MVP only while live Director AI remains disabled on public deployments until shared edge controls and provider budgets are in place.
 
@@ -238,7 +238,7 @@ This policy prevents AI-created cash/revenue and bounds all other changes. The s
 3. **Prepare snapshot.** Build the bounded context from current metrics, turn, recent decisions/events, recent Director beat IDs, and profile allowlists. Canonicalize it and calculate state, context, and previous-history hashes.
 4. **Prepare the proposal (9B-2A).** The Director service uses only the authored fallback families. It never imports or calls the AI provider, regardless of `SCENARIOLAB_AI_ENABLED`.
 5. **Validate and preview.** Pydantic rejects malformed structure, unknown fields, unsupported operators, overlong content, or invalid integers. Semantic policy rejects undeclared metrics, effect excesses, unaffordable options, duplicate/indistinct choices, recent beats/headlines, or any full-turn simulation failure. If fallback cannot provide two legal choices, return a safe non-advancing error rather than mutate state.
-6. **Sign and present.** The server assigns IDs, embeds the snapshot and hashes, records `source`, signs the proposal, and previews each choice through the same pure transition. The frontend presents the situation, two to four choices, approved effect previews, and an “Authored fallback” indicator. A pending proposal stays in memory; v2 local storage contains completed signed turn records only. On reload, the frontend replays completed records and requests a proposal for the current incomplete turn.
+6. **Sign and present.** The server assigns IDs, embeds the snapshot and hashes, records `source`, previews each choice through the same pure transition, and signs only after all choices pass. The frontend presents the situation, two to four choices, approved effect previews, and an “AI generated” or “Authored fallback” indicator. A signed, unselected pending proposal is stored with the v2 transcript and restored without regeneration.
 7. **Submit one choice.** The frontend posts the exact replay prefix, signed proposal, and selected choice ID. A synchronous UI request guard prevents double-click submission. The server verifies the record MAC and all run/state/profile bindings, confirms the choice ID is in the proposal, revalidates its effects, reconstructs the state, and runs the engine once.
 8. **Resolve normally.** Apply the selected Director effects, recurring rules, deterministic scripted event selection/effects, and outcome evaluation in the current contract order. The generated situation itself has no effect and does not consume a second turn. At most one scripted event may still occur as a separate consequence.
 9. **Sign and persist.** The response contains the authoritative `TurnResult`, new state, proposal/choice record, and signed receipt over the proposal hash, selected choice ID, previous history hash, and result hash. The browser appends this completed record to local storage only after the backend accepts the signed turn.
@@ -250,7 +250,7 @@ The scripted event engine continues to use its existing eligibility, determinist
 
 There is no mutable server game session today. Given the same verified prefix, proposal, and choice, a duplicate turn request replays to the same result and returns the same deterministic receipt; it does not apply another mutation to server storage. A proposal whose turn, state hash, scenario version, seed, profile version, or previous-history hash no longer matches is rejected with a structured `409 stale_director_proposal`. A client cannot reuse a turn-3 proposal against turn 4.
 
-In 9B-2A, proposal requests are fallback-only and are not billable. If a later 9B-2B provider path is approved, it will need shared edge controls and enforceable provider budgets; process-local controls cannot guarantee a global generation ceiling across replicas or process restarts.
+Live Director generation is disabled by default and remains blocked for public use. Its process-local rate limits/cache do not guarantee a global generation ceiling across replicas or process restarts. Public generation requires shared edge limits, direct-origin bypass protection, and provider spending controls.
 
 ## 6. Deterministic replay and authenticated records
 
@@ -277,7 +277,7 @@ Classic saves remain format version 1 with their existing action-ID list. A Dire
 }
 ```
 
-The example abbreviates JSON objects for readability. A real save stores their full fields. The v2 browser format does not persist the pending proposal. A reload replays completed history and requests only the current incomplete turn's deterministic fallback proposal. Completed turns are never regenerated. The save contains no metrics, current status, provider credentials, raw hidden prompt, or unsigned effect list.
+The example abbreviates JSON objects for readability. A real save stores their full fields and may include a `pending_proposal` value of the same signed-proposal shape. A reload replays completed history and asks the backend to verify and preview a pending proposal; it does not call a provider. If no pending proposal is present, the browser requests one for the current incomplete turn. Completed turns are never regenerated. The save contains no metrics, current status, provider credentials, raw hidden prompt, or unsigned effect list.
 
 The client may validate the envelope's size and shape for UI purposes, but only the backend verifies authenticity. Resume sends records as data; the backend reconstructs every turn from the seed and exact scenario/profile version. It validates the proposal and receipt at each step, recomputes the selected effects and event draw, and compares the canonical result hash. It never calls the provider during this process. An incompatible/unsupported format or key/profile version fails closed and preserves the local save; do not silently reinterpret version 1 as Director mode.
 
@@ -375,7 +375,7 @@ This endpoint accepts the same v2 identity and completed `turn_records` as the p
 
 ## 8. Reliability, cost, and security
 
-- Keep `SCENARIOLAB_DIRECTOR_ENABLED=false` by default. In 9B-2A the flag gates fallback proposal generation and is independent of `SCENARIOLAB_AI_ENABLED`; the browser cannot bypass the API gate. Any live proposal generation belongs to 9B-2B and must require both backend flags plus backend-only provider configuration. The browser cannot select a model or provider URL.
+- Keep `SCENARIOLAB_DIRECTOR_ENABLED=false` and `SCENARIOLAB_DIRECTOR_LIVE_GENERATION_ENABLED=false` by default. Director mode remains independent from live generation, and live generation additionally requires `SCENARIOLAB_AI_ENABLED=true` plus backend-only provider configuration. The browser cannot bypass the API gate or select a model/provider URL. Immediately disable live generation by setting `SCENARIOLAB_DIRECTOR_LIVE_GENERATION_ENABLED=false` (or `SCENARIOLAB_AI_ENABLED=false`) and restarting every API process.
 - Reuse the application-owned provider boundary or add `generate_director_proposal(context)` behind it. Do not expose provider response classes to the domain or engine.
 - Use current timeout/token/request-body controls, a strict proposal response byte cap, no automatic retry, and a deterministic fallback. The fallback uses authored JSON/profile data and a seeded selector; it is not another provider call.
 - Use a bounded in-process proposal cache and single-flight lock keyed by the full immutable context snapshot, plus the existing per-process attempt/concurrency controls. Cache content only after it passes all validation. Same-process duplicates should reuse the proposal. A multi-replica deployment can still duplicate calls unless a shared cache/lock is added.
@@ -396,7 +396,7 @@ Brick 8B can proceed independently. It may deploy the existing scripted game and
 5. ✅ **Brick 9B-1 — Add stateless proposal, turn, and replay APIs.** Replay verifies signed records and never calls a provider. A provider cache/single-flight mechanism is deferred because no provider is connected in 9B-1.
 6. ✅ **Brick 9B-2A — Add version-2 browser persistence.** Keep strict format-1 scripted saves intact; store only signed completed records and replay them through the backend without saving metrics/status or migrating old runs.
 7. ✅ **Brick 9B-2A — Present fallback Director gameplay.** Add mode selection, signed choices/previews/source/history, terminal report reuse, themed restart/mode switching, and a visible Classic path when Director is disabled. No provider integration is included.
-8. ⬜ **Brick 9B-2B — Add live proposal generation.** This remains deferred; require the documented provider gate, shared edge controls and budget limits, and fake-only provider tests before implementation.
+8. ✅ **Brick 9B-2B — Add live proposal generation.** Provider output is strict candidate JSON, validated and previewed atomically, signed only when valid, and falls back deterministically. Feature gates default off; tests use fakes/mocks only. One authorized request returned fallback after candidate rejection; live verification remains incomplete and public enablement remains blocked.
 9. ✅ **Brick 9B-2A — Run frontend and replay verification.** The complete backend Pytest, Vitest, production frontend build, full Playwright Chromium suite, headed Director smoke, three-turn reload/replay, tamper rejection, and screenshot review pass. Public Director generation and deployment remain disabled.
 
 ### Acceptance criteria
@@ -448,7 +448,7 @@ Keep the launch scope to validated per-turn situations/options for Startup Survi
 
 ## 11. Brick 9B-1 engine and API contract
 
-This implementation stage is fallback-only. The Director service does not import or invoke the AI provider. The `director_enabled` backend setting defaults to false; the existing `ai_enabled` setting does not enable Director generation.
+The Brick 9B-1 implementation stage was fallback-only. It established the signed proposal/replay APIs and deterministic authored catalog before provider integration. Brick 9B-2B adds an optional provider path through an application-owned generation service. The `director_enabled` and `director_live_generation_enabled` backend settings default to false; `ai_enabled` is also required for live generation.
 
 ### Domain and engine interfaces
 
@@ -478,7 +478,7 @@ The key ring is backend-only. An active key ID must exist in the ring. New propo
 
 The v2 `DirectorReplayHistory` envelope includes `format_version: 2`, `mode: "director"`, scenario/version, seed, profile/version, and up to 12 completed signed records. Each record contains the signed proposal, selected choice ID, and signed receipt. The service validates the HMACs, prior state/history digests, context snapshot/digest, turn sequence, profile limits, selected effects, resulting state digest, and result digest before accepting each record. It initializes from the exact Startup Survival definition and seed, applies each accepted choice through `resolve_transient_action`, and never calls or regenerates AI/fallback content during replay.
 
-Each complete signed record is capped at 4,096 UTF-8 bytes; serialized v2 request history is capped at 56,000 bytes under the existing default 65,536-byte request limit. Brick 9B-2A adds strict format-2 browser persistence and Director UI while the `/api/games/*` scripted contracts remain unchanged. There is no automatic migration and no persisted pending proposal.
+Each complete signed record is capped at 4,096 UTF-8 bytes; serialized v2 request history is capped at 56,000 bytes under the existing default 65,536-byte request limit. Brick 9B-2A adds strict format-2 browser persistence and Director UI while the `/api/games/*` scripted contracts remain unchanged. Format-2 saves accept the old shape without a pending proposal and the extended shape with one signed, unselected pending proposal. Both remain within the bounded save/request size.
 
 No server state is stored. A repeated identical turn request replays to the same state and receipt, but this is deterministic idempotence, not global exactly-once execution. HMACs reject edits and bind records to the requested scenario/version/seed/turn/state/history; they cannot distinguish the latest save from an earlier valid prefix or prevent deliberate branching from a valid prefix. Anti-rollback requires server-held monotonic state, which is outside 9B-1.
 
@@ -503,9 +503,21 @@ The proposal request uses the v2 identity object shown earlier with an empty `tu
 
 `POST /api/ai/director/replay` receives the identity object and completed `turn_records` only. It returns current state and the latest authoritative `TurnResult` without generating a new proposal. Requests with unsupported profile/scenario versions, stale proposals, invalid signatures, terminal histories, malformed records, or excessive size fail with structured errors.
 
-## 12. Brick 9B-2B scope (not implemented)
+## 12. Brick 9B-2B implementation (mocked and complete)
 
-9B-2B may add a provider-owned structured proposal method only after the backend gate requires both `SCENARIOLAB_DIRECTOR_ENABLED=true` and `SCENARIOLAB_AI_ENABLED=true`, and shared edge controls and provider budgets are verified. The format-2 browser save, fallback Director presentation, signed history, resume/restart flow, and source indicator are already part of 9B-2A. 9B-2B must preserve v1/v2 saves and must not add another scenario, general expression evaluator, database, or authentication system.
+The proposal endpoint has a live candidate path requiring `SCENARIOLAB_DIRECTOR_ENABLED=true`, `SCENARIOLAB_DIRECTOR_LIVE_GENERATION_ENABLED=true`, and `SCENARIOLAB_AI_ENABLED=true`, plus backend-only provider credentials and signing configuration. Each live proposal attempt calls the existing OpenAI-compatible adapter once at most. The prompt contains only bounded Startup Survival identity/objectives, current turn and remaining turns, current metric values/bounds, recent decisions/outcomes, nearby curated event metadata, recent Director families/headline digests, and the approved profile constraints. It excludes signing/provider secrets, local paths, and unrelated user information.
+
+Provider output is limited to a situation family/headline/description and two to four choices with text and proposed effects. The backend supplies situation/choice IDs and all state, history, seed, context, and signing bindings. Strict Pydantic models reject unknown fields and malformed output. Semantic validation rejects unknown metrics/operators, effect/cumulative/cash limits, unaffordable resource spending, duplicate effect fingerprints, repeated recent families/headlines, numeric claims in narrative text, and any option that fails the full authoritative turn preview. Invalid live content is rejected atomically; the backend never edits its effects. A proposal is HMAC-signed only after every choice passes. Model generation does not choose curated events or terminal outcomes.
+
+The model receives strict JSON Schema output derived from `DirectorGeneratedProposal`; all fields are required and extra keys are disallowed. Pydantic enforces text, array, integer, and enum shapes. The prompt explicitly prohibits repeating a metric within one choice. The schema cannot encode state-dependent profile limits or affordability, so the Python profile validator and engine preview remain authoritative. Unknown metrics/operators, per-effect and cumulative limits, affordability, and full-turn engine resolution are still checked before signing.
+
+Sanitized diagnostic codes distinguish `provider_transport_failure`, `provider_rate_limited`, `provider_timeout`, `provider_response_incomplete`, `output_truncated`, `invalid_json`, `structured_schema_failure`, `unknown_metric`, `unknown_operator`, `effect_limit_violation`, `unaffordable_choice`, and `semantic_validation_failure`, plus bounded-size, concurrency, and unavailable states. Logs never include exception text, prompts, candidate bodies, credentials, or context.
+
+Director now uses `SCENARIOLAB_DIRECTOR_MAX_RESPONSE_TOKENS`, default 800 and bounded to 100–800; AI briefings retain their separate 500-token default. The authorized response used 494 completion tokens from a 500-token cap, which suggests the cap was tight, but the original harness did not preserve `finish_reason`; truncation is unconfirmed. Future responses with `finish_reason: "length"` are classified as `output_truncated`. No provider request is needed to validate this handling.
+
+If live generation is disabled, unavailable, times out, is rate/concurrency limited, returns invalid/oversized JSON, or fails schema/semantic validation, the service selects an approved authored fallback in its existing deterministic order. The signed `source` distinguishes `live` from `fallback`; the frontend displays **AI generated** or **Authored fallback**. Replay only verifies signatures and replays engine outcomes; it does not call or regenerate AI content.
+
+Live generation makes no automatic retry. It uses the existing provider timeout/token/per-caller rate/concurrency settings, a 12 KB context and 16 KB response cap, and a bounded exact-context cache for semantically valid candidates. Process-local limits/cache are not a global spending ceiling and do not stop calls across replicas/restarts. The documented kill switch is `SCENARIOLAB_DIRECTOR_LIVE_GENERATION_ENABLED=false` (or `SCENARIOLAB_AI_ENABLED=false`), followed by restarting every API process. Public live Director remains disabled until shared rate limiting, direct-origin bypass protection, and provider spending controls are addressed.
 
 ## 13. Brick 9B-2A implementation record
 
@@ -518,9 +530,9 @@ The proposal request uses the v2 identity object shown earlier with an empty `tu
 
 ### Local save contract
 
-The strict format-2 `scenariolab.saved-run` value matches the `DirectorReplayHistory` identity and records and includes no pending proposal. Its identity fields are `format_version`, `mode`, `scenario_id`, `scenario_version`, `seed`, `profile_id`, and `profile_version`. The ordered `turn_records` array contains `DirectorTurnRecord` objects. Each record has a `proposal` (`SignedDirectorProposal` with `payload` and `signature`), a `selected_choice_id`, and a `receipt` (`SignedDirectorReceipt` with `payload` and `signature`).
+The strict format-2 `scenariolab.saved-run` value matches the `DirectorReplayHistory` identity and records and may include one pending proposal. Its identity fields are `format_version`, `mode`, `scenario_id`, `scenario_version`, `seed`, `profile_id`, and `profile_version`. The ordered `turn_records` array contains `DirectorTurnRecord` objects. Each record has a `proposal` (`SignedDirectorProposal` with `payload` and `signature`), a `selected_choice_id`, and a `receipt` (`SignedDirectorReceipt` with `payload` and `signature`). The optional `pending_proposal` has the same signed proposal shape and no selected choice.
 
-The pending current-turn proposal remains in memory only. On reload the browser sends the version-2 envelope to `POST /api/ai/director/replay`, verifies the response identity, state, record count, latest record/result, and original seed, then requests one proposal for the incomplete turn if the game remains active. Completed proposals are never requested again. A terminal save restores its terminal report without requesting a proposal. The current deterministic fallback returns the same proposal for the same state/history.
+On reload the browser sends the version-2 envelope and optional pending proposal to `POST /api/ai/director/replay`. The backend verifies the completed chain, reconstructs authoritative state, verifies pending signature/version/state/turn/seed/history binding, and returns new authoritative previews. The browser checks response identity, state, record count, latest record/result, original seed, and pending proposal equality. A valid pending proposal renders without another proposal request or LLM call. If there is no pending proposal and the run remains active, the browser requests the current incomplete turn. Completed proposals are never regenerated. A terminal save restores its report without requesting a proposal.
 
 Format 1 remains strict and resumes via the existing `/api/games/start` and `/api/games/turn` replay. The single localStorage key holds one run. Switching modes or restarting with existing progress asks before replacing it. Restore failures do not write to localStorage. A structurally valid but tampered signature is rejected by backend replay; the stored value remains unchanged.
 
@@ -534,14 +546,19 @@ cd frontend
 npm test
 npm run build
 npm run test:e2e
-npm run test:e2e:headed -- --grep "Director completes three signed turns"
 ```
 
-Playwright injects a test-only backend signing key and leaves live AI disabled. The tested Director path completes three turns, reloads, verifies the signed transcript, continues from turn four, and reaches an engine terminal state. A network-only receipt tamper is rejected by backend replay while the original valid local save remains unchanged. Desktop and mobile light/dark screenshots are captured and reviewed.
+The diagnostics revision passed 116 Pytest, 68 Vitest, the production build, and all 19 Playwright Chromium tests. Provider responses are mocked; Playwright starts an isolated backend with both AI flags disabled. Its Director path completes turns, restores a pending signed proposal after reload without a replacement request, verifies signed replay, continues to terminal state, and rejects tampered history without overwriting local data. Desktop/mobile and light/dark journeys pass. The one authorized live request is recorded separately in Section 14.
 
 ### Known limits
 
 - Only the pinned Startup Survival v1.0.0 Director profile is supported.
-- The pending current-turn proposal is not in local storage; a reload requests it again. This applies only to an incomplete turn, not a completed turn.
-- Saves are local to one browser profile. There is no account, cross-device sync, server-side monotonic run head, or rollback protection for earlier valid prefixes.
-- Director stays unavailable unless the backend flag and signing key ring are configured. Live AI generation, public deployment, and Brick 9B-2B remain incomplete.
+- Saves remain local to one browser profile. Pending proposals are verified on restore but local storage does not provide anti-rollback or cross-device guarantees.
+- There is no account or server-side monotonic run head, and earlier valid prefixes can still be replayed.
+- Director stays unavailable unless the backend flag and signing key ring are configured. Live generation remains off by default and public live generation remains blocked by missing shared rate limiting, direct-origin protection, and provider spending controls.
+
+## 14. Authorized live-provider smoke result
+
+The one authorized request used `gpt-4.1-mini` and returned HTTP 200. Usage was 1,028 prompt tokens and 494 completion tokens against a 500-token cap. The provider candidate failed at the schema/semantic boundary; the API returned signed authored fallback. The smoke harness did not retain `finish_reason` or a precise sanitized failure code, so it cannot establish whether truncation, malformed JSON, schema mismatch, or semantic effect validation caused rejection. No retry was made. Pending-proposal restoration was skipped because no valid live proposal was returned. Live generation was disabled when the isolated process exited. No further billable request is authorized by this work.
+
+This diagnostics revision adds structured output and sanitized reason codes, then verifies them only through mocked transports. Live Director remains unverified until a future separately authorized request returns a valid candidate that passes backend validation, signing, and pending restoration.

@@ -107,6 +107,22 @@ test("round-trips the strict v2 signed Director history envelope", () => {
   ]);
 });
 
+test("persists a bounded pending signed proposal alongside v2 history", () => {
+  const pending = signedProposalFor(gameStartFixture.state);
+  const directorSave: SavedDirectorRun = {
+    ...directorHistoryFixture(),
+    format_version: DIRECTOR_SAVE_FORMAT_VERSION,
+    pending_proposal: pending,
+  };
+  const storage = memoryStorage();
+
+  expect(writeSavedRun(directorSave, storage)).toBe("saved");
+  expect(readSavedRun(storage)).toEqual({ status: "valid", save: directorSave });
+  expect(JSON.parse(storage.getItem(SAVE_STORAGE_KEY) ?? "null")).toHaveProperty("pending_proposal", pending);
+  expect(writeSavedRun({ ...directorSave, pending_proposal: { ...pending, unexpected: true } } as never, storage)).toBe("invalid");
+  expect(readSavedRun(storage)).toEqual({ status: "valid", save: directorSave });
+});
+
 test("rejects malformed or reordered v2 records without changing stored data", () => {
   const first = turnResponseFor(signedProposalFor(gameStartFixture.state)).turn_record;
   const directorSave: SavedDirectorRun = {

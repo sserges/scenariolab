@@ -65,7 +65,7 @@ export function GameplayScreen({
           />
           <ModeCard
             badge="Authored fallback situations"
-            description="A signed Director proposal presents situation-specific choices and authoritative previews. No live AI generation is used."
+            description="A signed Director proposal presents situation-specific choices and authoritative previews. Live generation is optional and off by default."
             onClick={() => setMode("director")}
             title="AI Scenario Director"
           />

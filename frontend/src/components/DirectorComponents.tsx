@@ -10,19 +10,21 @@ import type {
 } from "../lib/api";
 import { formatMetricDelta, formatMetricValue, getFavorability } from "../lib/metrics";
 
-export function DirectorSourceIndicator({ source }: { source: "fallback" }) {
+export function DirectorSourceIndicator({ source }: { source: "live" | "fallback" }) {
   return (
-    <span className="rounded-full border border-accent/20 bg-accent/10 px-3 py-1 text-xs font-bold uppercase tracking-wider text-accent">
-      Authored fallback
+    <span aria-label={source === "live" ? "Situation source: AI generated" : "Situation source: authored fallback"} className="rounded-full border border-accent/20 bg-accent/10 px-3 py-1 text-xs font-bold uppercase tracking-wider text-accent" role="status">
+      {source === "live" ? "AI generated" : "Authored fallback"}
     </span>
   );
 }
 
 export function DirectorSituationCard({
   situation,
+  source,
   turn,
 }: {
   situation: DirectorTurnRecord["proposal"]["payload"]["situation"];
+  source: "live" | "fallback";
   turn: number;
 }) {
   return (
@@ -35,7 +37,7 @@ export function DirectorSituationCard({
             {situation.headline}
           </h2>
         </div>
-        <DirectorSourceIndicator source="fallback" />
+        <DirectorSourceIndicator source={source} />
       </div>
       <p className="relative mt-4 max-w-3xl text-sm leading-7 text-secondary sm:text-base">{situation.description}</p>
       <p className="relative mt-5 text-xs font-semibold uppercase tracking-wider text-secondary">
@@ -176,7 +178,10 @@ export function DirectorHistory({
             <li className="rounded-2xl border border-line bg-inset p-4 sm:p-5" key={record.receipt.payload.result_digest}>
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <p className="text-xs font-bold uppercase tracking-wider text-accent">Turn {index + 1} · {record.proposal.payload.situation.beat_id}</p>
-                <span className="rounded-full border border-line bg-surface px-3 py-1 text-xs font-semibold text-secondary">Signed receipt</span>
+                <div className="flex flex-wrap items-center gap-2">
+                  <DirectorSourceIndicator source={record.proposal.payload.source} />
+                  <span className="rounded-full border border-line bg-surface px-3 py-1 text-xs font-semibold text-secondary">Signed receipt</span>
+                </div>
               </div>
               <h3 className="mt-2 text-lg font-bold text-primary">{record.proposal.payload.situation.headline}</h3>
               <p className="mt-1 text-sm leading-6 text-secondary">{record.proposal.payload.situation.description}</p>

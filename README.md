@@ -1,6 +1,6 @@
 # ScenarioLab
 
-ScenarioLab is a decision-simulation platform. Players make bounded decisions, a deterministic simulation engine calculates their numeric consequences, and optional AI adds validated explanations without becoming the source of truth. Game events are curated scenario data; AI does not generate or select events.
+ScenarioLab is a decision-simulation platform. Players make bounded decisions, a deterministic simulation engine calculates their numeric consequences, and optional AI can supply validated explanations and candidate Director situations without becoming the source of truth. Game events are curated scenario data; AI does not generate or select events.
 
 The first playable definition is **Startup Survival**: manage a startup over 12 monthly turns, balance resources and operating metrics, respond to events, and receive an ending report. The official catalog also includes **Cybersecurity Crisis** and **Space Colony**, which remain clearly marked as planned until their complete definitions and tests exist.
 
@@ -12,7 +12,7 @@ The first playable definition is **Startup Survival**: manage a startup over 12 
 
 **Brick 8A: deployment and security readiness** is prepared locally: safe production configuration, request and provider concurrency bounds, container and static-host guidance, and submission documentation are in place. The application has not been deployed. Shared edge rate limiting and origin protection remain required before enabling billable AI on a public endpoint.
 
-**Brick 9B-2A: Director UI and signed save/resume** is complete and verified. Startup Survival offers Classic Simulation and an optional AI Scenario Director mode. Director currently uses authored fallback situations only and remains disabled by default with `SCENARIOLAB_DIRECTOR_ENABLED=false`; it does not call a live AI provider. Version-2 local saves preserve signed Director proposals, choices, receipts, and ordered history while version-1 scripted saves continue unchanged. Live Director generation remains incomplete and is deferred to Brick 9B-2B.
+**Brick 9B-2A and Brick 9B-2B: Director gameplay and mocked live-generation integration** are implemented and verified. One separately authorized live smoke request returned HTTP 200, but the generated candidate was rejected and authored fallback was returned; live generation remains unverified. Startup Survival offers Classic Simulation and an optional AI Scenario Director mode. Director stays disabled unless `SCENARIOLAB_DIRECTOR_ENABLED=true` and signing keys are configured. Live proposal generation also requires `SCENARIOLAB_DIRECTOR_LIVE_GENERATION_ENABLED=true` and `SCENARIOLAB_AI_ENABLED=true`; both live flags default to false. Valid AI candidates are signed only after strict profile validation and deterministic engine previews. Provider failure or invalid output selects deterministic authored fallback. Version-2 saves preserve the signed pending proposal and completed records; version-1 Classic saves remain unchanged. Public billable generation remains blocked on shared rate limits, origin-bypass protection, and provider spending controls.
 
 ## Official predefined scenarios
 
@@ -35,7 +35,7 @@ Catalog metadata makes all three concepts discoverable. Only an `available` entr
 - Local save, resume, and restart
 - Win/loss evaluation and an ending report
 - Deterministic fallback briefings when the configured AI provider is unavailable
-- Optional fallback-only AI Scenario Director mode for Startup Survival
+- Optional AI Scenario Director mode for Startup Survival with signed live proposals or deterministic authored fallback
 
 Implementation order is Startup Survival first, then Cybersecurity Crisis and Space Colony after the reusable engine and MVP loop are proven. Prompt, document, and URL scenario generation remain stretch work after the predefined MVP is stable.
 
@@ -48,29 +48,29 @@ ScenarioLab separates scenario data from calculation:
 3. An initial immutable `GameState` copies metric values from a definition without evaluating a decision or turn.
 4. The Python engine validates actions, applies declared effects and recurring rules, enforces bounds, selects predefined events, advances turns, evaluates terminal criteria, and returns immutable outcome records.
 5. The stateless gameplay API replays accepted action IDs and returns server-calculated state and outcomes; the React client only renders those authoritative values.
-6. The optional AI briefing service receives only replayed engine facts, validates structured narrative output, and falls back deterministically. It cannot alter state, choose events, or execute generated code.
+6. Optional AI services receive only bounded replayed facts. The briefing service validates narrative output; the Director validates candidate choices against its profile and previews them through the deterministic engine. Both use deterministic fallback and neither can alter authoritative state or choose curated events.
 
 See [docs/architecture.md](docs/architecture.md) for the contract and trust boundaries.
 
 ## Demo instructions
 
 1. Start the FastAPI backend and Vite frontend using the local run commands below.
-2. Select **Startup Survival**, then choose **Classic Simulation** or **AI Scenario Director**. Director is an optional backend-gated mode and uses authored fallback situations only.
+2. Select **Startup Survival**, then choose **Classic Simulation** or **AI Scenario Director**. Director is backend-gated and labels each situation **AI generated** or **Authored fallback**.
 3. Complete at least three decisions, then inspect KPI cards, trend charts, events, source indicators, and the decision timeline.
 4. Reload the browser and choose **Continue Saved Game** to demonstrate replay-based resume. Classic saves replay ordered action IDs; Director saves replay signed records.
 5. Continue until the engine ends the run, review the terminal report, then restart after confirming replacement of saved progress.
 
-The demo works with live AI disabled: Classic gameplay and briefings use deterministic behavior, and Director gameplay uses authored fallback situations when its separate feature flag and signing key are configured. Cybersecurity Crisis and Space Colony are Coming Soon and are not playable.
+The demo works with all live AI disabled: Classic gameplay and briefings use deterministic behavior, and Director gameplay uses authored fallback situations when its independent mode flag and signing key are configured. Cybersecurity Crisis and Space Colony are Coming Soon and are not playable.
 
 ## AI implementation and assisted-development disclosure
 
-The Python engine owns all state and numeric outcomes. After a completed turn, the backend can replay the submitted scenario identity and action history, send a minimal engine-grounded context to the configured OpenAI-compatible Chat Completions endpoint, validate the five narrative fields, and return deterministic fallback text on provider failure. AI does not generate gameplay events or alter the simulation. The configured example model is `gpt-4.1-mini`; one live smoke request was verified in Brick 6. Automated tests mock provider calls.
+The Python engine owns all state and numeric outcomes. After a completed turn, the briefing path can send a minimal engine-grounded context to the configured OpenAI-compatible endpoint and validate five narrative fields. The Director proposal path can send sanitized Startup Survival state and policy context, then validate a bounded situation and two to four proposed choices. It does not accept model-generated state values, metrics, rules, events, or calculations. The Python application checks affordability and effect limits, previews every choice through the deterministic engine, signs only the fully valid proposal, and falls back to authored content on any live-path failure. The configured example model is `gpt-4.1-mini`; Brick 6's briefing smoke request was verified once. One separately authorized Director smoke request returned HTTP 200, but its candidate was rejected and signed authored fallback was returned. No further live request is authorized; all diagnostics tests use fake providers or HTTP mocks.
 
 OpenAI Codex was used as a coding assistant for application implementation, tests, and documentation. The developer directed the work and reviewed the resulting changes. Direct dependencies are credited by the package manifests and lockfiles: React, TypeScript, Vite, Tailwind CSS, FastAPI, Pydantic, HTTPX, Uvicorn, Pytest, Vitest, Testing Library, and Playwright. Exact resolved versions are recorded in `frontend/package-lock.json` and `backend/uv.lock`. There are no bundled third-party image or font assets.
 
 ## Privacy notes
 
-ScenarioLab has no accounts, authentication, analytics SDK, or user profile fields. The browser stores one run at a time in local storage. Classic format 1 contains scenario ID/version, seed, and accepted action IDs. Director format 2 contains scenario/version, original seed, mode/profile identity, and completed signed turn records with proposal, selected choice ID, receipt, and ordered history. Neither format stores metrics or status; Director saves contain no signing secrets or provider credentials. Game requests send replay inputs to the backend. If live AI is enabled, the backend sends a compact simulation context to the configured provider; do not include personal or confidential information in scenario content. Hosting providers may retain request metadata in operational logs, so review retention and access settings before a public release. The app does not promise provider-side retention behavior.
+ScenarioLab has no accounts, authentication, analytics SDK, or user profile fields. The browser stores one run at a time in local storage. Classic format 1 contains scenario ID/version, seed, and accepted action IDs. Director format 2 contains scenario/version, original seed, mode/profile identity, completed signed turn records, and an optional signed pending proposal for the current unselected turn. Neither format stores metrics or status; Director saves contain no signing secrets, provider credentials, raw prompts, or unsigned effects. Game requests send replay inputs to the backend. If live AI is enabled, the backend sends a compact simulation context to the configured provider; do not include personal or confidential information in scenario content. Hosting providers may retain request metadata in operational logs, so review retention and access settings before a public release. The app does not promise provider-side retention behavior.
 
 ## Known limitations
 
@@ -147,9 +147,9 @@ The API is available at `http://localhost:8000`.
 | `POST /api/games/start` | Start a fresh stateless simulation |
 | `POST /api/games/turn` | Replay prior actions and resolve one new decision |
 | `POST /api/ai/briefing` | Replay completed actions and narrate the latest outcome |
-| `POST /api/ai/director/proposal` | Replay signed Director history and return the current signed fallback proposal and previews |
+| `POST /api/ai/director/proposal` | Replay Director history and return a signed live or authored-fallback proposal with engine previews |
 | `POST /api/ai/director/turn` | Verify and resolve one selected signed Director choice |
-| `POST /api/ai/director/replay` | Verify signed Director history and reconstruct the authoritative current state |
+| `POST /api/ai/director/replay` | Verify signed Director history, optionally verify/preview a pending proposal, and reconstruct authoritative state |
 
 Planned scenario details return HTTP 409 with `scenario_not_available`; unknown IDs return HTTP 404 with `scenario_not_found`.
 
@@ -170,22 +170,25 @@ The backend uses an OpenAI-compatible Chat Completions endpoint. Copy `backend/.
 | --- | --- | --- |
 | `SCENARIOLAB_ENVIRONMENT` | Settings validation profile; production requires HTTPS origins | `development` |
 | `SCENARIOLAB_AI_ENABLED` | Explicit live-AI switch; false always selects fallback | `false` |
+| `SCENARIOLAB_DIRECTOR_ENABLED` | Independently enables the signed Director mode | `false` |
+| `SCENARIOLAB_DIRECTOR_LIVE_GENERATION_ENABLED` | Enables live Director candidate generation when AI is also enabled | `false` |
 | `SCENARIOLAB_AI_API_KEY` | Provider credential; inject only on the backend | empty |
 | `SCENARIOLAB_AI_MODEL` | Provider model identifier | `gpt-4.1-mini` example |
 | `SCENARIOLAB_AI_BASE_URL` | Operator-controlled API root | `https://api.openai.com/v1` |
 | `SCENARIOLAB_AI_TIMEOUT_SECONDS` | Whole provider request timeout | `10`, allowed `1..30` |
-| `SCENARIOLAB_AI_MAX_RESPONSE_TOKENS` | Provider output cap | `500`, allowed `100..800` |
+| `SCENARIOLAB_AI_MAX_RESPONSE_TOKENS` | Briefing output cap | `500`, allowed `100..800` |
+| `SCENARIOLAB_DIRECTOR_MAX_RESPONSE_TOKENS` | Director structured-proposal output cap | `800`, allowed `100..800` |
 | `SCENARIOLAB_AI_PROVIDER_CALLS_PER_MINUTE` | Per-process, per-caller provider-attempt guard | `20`, allowed `1..120` |
 | `SCENARIOLAB_AI_MAX_CONCURRENT_PROVIDER_CALLS` | Per-process in-flight provider limit | `2`, allowed `1..32` |
 | `SCENARIOLAB_MAX_REQUEST_BODY_BYTES` | API request body limit | `65536`, allowed `1024..1048576` |
 
-Live AI is disabled by default even when a key and model are present. Set `SCENARIOLAB_AI_ENABLED=true` deliberately to enable it; production mode requires an HTTPS frontend origin and HTTPS provider URL, and requires both a key and model when live AI is enabled. Never place the key in `frontend/.env`, a `VITE_` variable, source control, logs, saves, image build arguments, or prompts. The browser cannot select the model or provider URL. Automated tests use mocked providers or fallback-only configuration.
+Live AI is disabled by default even when a key and model are present. Set `SCENARIOLAB_AI_ENABLED=true` deliberately to enable briefings. Live Director generation has an additional independent gate: both `SCENARIOLAB_DIRECTOR_ENABLED=true` and `SCENARIOLAB_DIRECTOR_LIVE_GENERATION_ENABLED=true` are required, along with a valid signing key ring and provider credentials. Production mode requires an HTTPS frontend origin and HTTPS provider URL. Never place the key in `frontend/.env`, a `VITE_` variable, source control, logs, saves, image build arguments, or prompts. The browser cannot select the model or provider URL. Automated tests use mocked providers or fallback-only configuration.
 
-For local live-provider use only, explicitly set `SCENARIOLAB_AI_ENABLED=true` in the ignored backend environment file and provide the configured model and secret key. No automated test requires this setting.
+For local live-provider use only, explicitly set `SCENARIOLAB_AI_ENABLED=true` in the ignored backend environment file and provide the configured model and secret key. The one authorized Director smoke request returned fallback; its exact rejection cause remains unknown because the harness did not preserve `finish_reason` or a diagnostic code. The diagnostics revision is verified with mocks only. Automated tests never require provider settings.
 
 ## Optional AI Scenario Director
 
-Director mode is available only for Startup Survival and only when the backend feature flag and HMAC signing configuration are present. The backend flag defaults to false; the frontend always calls the Director API and respects its structured disabled response. `SCENARIOLAB_AI_ENABLED` does not enable Director generation, and the current Director service never invokes a provider. Do not turn on live Director generation in this brick.
+Director mode is available only for Startup Survival and only when `SCENARIOLAB_DIRECTOR_ENABLED` and HMAC signing configuration are present. The mode flag defaults to false and is independent from `SCENARIOLAB_AI_ENABLED`; live generation additionally requires `SCENARIOLAB_DIRECTOR_LIVE_GENERATION_ENABLED`, also false by default. The frontend respects structured disabled responses and never receives provider or signing keys.
 
 For controlled local fallback validation, set these backend-only values:
 
@@ -195,7 +198,15 @@ SCENARIOLAB_DIRECTOR_ACTIVE_SIGNING_KEY_ID=director-local
 SCENARIOLAB_DIRECTOR_SIGNING_KEYS={"director-local":"<at least 32 random UTF-8 bytes>"}
 ```
 
-Signing keys stay on the backend. The browser never receives them. The v2 save is replay-verified by `/api/ai/director/replay`; after reload, only the current incomplete turn may request its deterministic fallback proposal again. Completed turns are never regenerated. The separate live provider integration, Brick 9B-2B, remains incomplete.
+Signing keys stay on the backend. The browser never receives them. A v2 save may include the current signed, unselected proposal. On restore, `/api/ai/director/replay` reconstructs completed history, verifies the proposal's HMAC and state/turn/seed/history bindings, and returns fresh authoritative previews without an LLM request. If no pending proposal is saved, the browser requests one only for the current incomplete turn. Completed turns are never regenerated. The proposal endpoint accepts only a strict JSON situation and 2–4 choices; the backend assigns stable IDs, rejects unknown metrics/operators, repeated families/headlines, unsupported numeric narrative claims, unaffordable or over-budget effects, and any option that fails full-turn preview. It signs only after all choices pass. Any disabled, unavailable, timed-out, malformed, oversized, schema-invalid, or semantically invalid live response falls back to the deterministic authored catalog. The UI labels each proposal as **AI generated** or **Authored fallback**.
+
+Director requests strict JSON Schema output from the candidate Pydantic model, then runs the same authoritative profile and engine checks. `finish_reason: "length"` is logged as `output_truncated`; provider and validation diagnostics expose only stable codes. The prior smoke response used 494 of 500 completion tokens, but its finish reason was not captured, so truncation is unconfirmed. Director now has a separate bounded output cap (`SCENARIOLAB_DIRECTOR_MAX_RESPONSE_TOKENS`, default 800); the briefing cap stays at 500.
+
+Generation uses one provider attempt per proposal request, the existing bounded provider timeout/token/rate/concurrency controls, a 12 KB prompt-context cap, a 16 KB provider-response cap, and a bounded exact-context cache of semantically valid candidates. It makes no automatic retries. Limits and cache are process-local and do not enforce a global or per-run cost ceiling. To immediately disable live Director generation, set `SCENARIOLAB_DIRECTOR_LIVE_GENERATION_ENABLED=false` and restart every API process; `SCENARIOLAB_AI_ENABLED=false` also disables it. Live public generation remains off until shared rate limiting, direct-origin bypass protection, and provider spending controls are in place. Do not use a public live endpoint before those blockers are resolved.
+
+### Live-provider smoke result and diagnostics
+
+One authorized smoke request returned HTTP 200 but the live candidate was rejected; deterministic authored fallback succeeded. No further real requests are authorized. The diagnostics work is mocked only. It records a sanitized failure category and handles `finish_reason` for future local diagnostics; it does not expose raw provider content. Any future live request requires new explicit authorization and should use the one-request harness, with retries disabled and no browser-triggered generation.
 
 `POST /api/ai/briefing` accepts only replay identity, never metrics or narrative claims:
 
@@ -263,7 +274,7 @@ npm run test:e2e:report
 
 The E2E fixture injects seed `42` into the real game-start request for repeatability while all start and turn calculations still execute in FastAPI. It intercepts every browser `POST /api/ai/briefing`, validates the replay identity/history, and returns a schema-valid mock briefing. The Playwright backend process also overrides `SCENARIOLAB_AI_API_KEY` to empty as defense in depth. The real key in ignored `backend/.env` is never read into the E2E provider, printed, recorded in traces, or sent over the network. Tests that expect a briefing assert the mocked headline and call count, so a missing interception fails rather than silently passing.
 
-The Playwright backend receives a fixed test-only Director signing key from `playwright.config.ts`; it is server-side test configuration and is never sent to the browser. Its AI provider remains disabled. The suite exercises signed proposal/turn/replay endpoints, a three-turn reload/resume journey, a tampered-record rejection, a disabled-Director response, Classic regression journeys, and mobile theme layouts.
+The Playwright backend receives a fixed test-only Director signing key from `playwright.config.ts`; it is server-side test configuration and is never sent to the browser. Both AI switches are explicitly disabled, so no automated browser journey can make a provider request. The suite exercises signed proposal/turn/replay endpoints, pending-proposal reload restoration without regeneration, tamper rejection, a disabled-Director response, Classic regression journeys, and mobile theme layouts.
 
 If Chromium is missing or Playwright reports an executable error, run:
 

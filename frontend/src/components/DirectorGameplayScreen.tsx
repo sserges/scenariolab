@@ -163,6 +163,16 @@ export function DirectorGameplayScreen({
       const replay = await replayDirectorRun(resumeSave, signal);
       if (!isCurrentRequest(version)) return;
       assertReplayMatchesSave(replay, resumeSave, started.state);
+      const restoredProposal = replay.pending_proposal == null
+        ? null
+        : {
+            scenario_id: replay.scenario_id,
+            scenario_version: replay.scenario_version,
+            seed: replay.seed,
+            state: replay.state,
+            proposal: replay.pending_proposal,
+            previews: replay.pending_previews ?? [],
+          };
       const restored: DirectorSession = {
         scenario: started.scenario,
         scenarioId: replay.scenario_id,
@@ -171,7 +181,7 @@ export function DirectorGameplayScreen({
         initialMetricValues: { ...started.state.metric_values },
         state: replay.state,
         turnRecords: [...resumeSave.turn_records],
-        proposal: null,
+        proposal: restoredProposal,
         selectedChoiceId: null,
         lastResult: replay.latest_turn_result,
       };
@@ -179,7 +189,7 @@ export function DirectorGameplayScreen({
       setPersistenceStatus("saved");
       onSaveStateChange?.({ status: "valid", save: resumeSave });
       setErrorMessage(null);
-      if (!isTerminal(replay.state)) {
+      if (!isTerminal(replay.state) && restoredProposal === null) {
         await loadProposal(restored, version, true);
       }
     } catch (error) {
@@ -203,14 +213,12 @@ export function DirectorGameplayScreen({
     }
     setErrorMessage(null);
     try {
-      const proposal = await fetchProposal(makeSave(forSession), forSession.state, requestVersion, controller.current?.signal);
+      const proposal = await fetchProposal(makeHistory(forSession), forSession.state, requestVersion, controller.current?.signal);
       if (!isCurrentRequest(requestVersion)) return;
-      setSession((current) => {
-        if (current === null || current.state.current_turn !== proposal.state.current_turn || !sameState(current.state, proposal.state)) {
-          return current;
-        }
-        return { ...current, proposal, selectedChoiceId: null };
-      });
+      if (forSession.state.current_turn !== proposal.state.current_turn || !sameState(forSession.state, proposal.state)) return;
+      const updated: DirectorSession = { ...forSession, proposal, selectedChoiceId: null };
+      setSession((current) => current === null || !sameState(current.state, proposal.state) ? current : updated);
+      persistRun(makeSave(updated));
       setFailedOperation("proposal");
       setDirectorUnavailable(false);
     } catch (error) {
@@ -242,7 +250,7 @@ export function DirectorGameplayScreen({
     setErrorMessage(null);
     try {
       const response = await playDirectorTurn({
-        ...makeSave(current),
+        ...makeHistory(current),
         proposal: signedProposal,
         selected_choice_id: selectedChoiceId,
       }, getController().signal);
@@ -344,7 +352,7 @@ export function DirectorGameplayScreen({
       </div>
 
       <header className="rounded-3xl border border-accent/20 bg-surface p-6 shadow-2xl shadow-black/20 sm:p-9">
-        <p className="text-xs font-bold uppercase tracking-[0.2em] text-accent">AI Scenario Director · fallback-only</p>
+        <p className="text-xs font-bold uppercase tracking-[0.2em] text-accent">AI Scenario Director · live generation optional</p>
         <h1 className="mt-4 text-4xl font-black tracking-tight text-primary sm:text-5xl" id="director-gameplay-title">{scenarioTitle}</h1>
         <p className="mt-4 max-w-3xl text-base leading-7 text-secondary sm:text-lg sm:leading-8">{objective}</p>
         {session !== null && <dl className="mt-6 flex flex-wrap gap-3 text-xs font-semibold text-secondary">
@@ -368,7 +376,7 @@ export function DirectorGameplayScreen({
       {session === null ? (
         <div className="mt-7 rounded-3xl border border-line bg-tint p-7 text-center sm:p-12">
           {pendingOperation === "resume" ? <div aria-live="polite" className="mx-auto max-w-xl" role="status"><h2 className="text-2xl font-bold text-primary">Verifying signed Director history</h2><p className="mt-3 leading-7 text-secondary">The backend is replaying every signed turn record from the original seed. Completed turns will not request new proposals.</p></div> : (
-            <><h2 className="text-2xl font-bold text-primary">Ready for an authored Director run?</h2><p className="mx-auto mt-3 max-w-xl leading-7 text-secondary">The backend will validate a signed situation and authoritative previews before the run begins. This mode uses authored fallback content only.</p><button className="mt-7 min-h-12 rounded-xl bg-accent px-6 py-3 font-bold text-on-accent transition-colors hover:bg-accent-hover disabled:cursor-wait disabled:opacity-60" disabled={isPending} onClick={() => void startDirectorSimulation()} type="button">{pendingOperation === "start" ? "Starting Director…" : "Start Director Simulation"}</button></>
+            <><h2 className="text-2xl font-bold text-primary">Ready for a Director run?</h2><p className="mx-auto mt-3 max-w-xl leading-7 text-secondary">The backend will validate a signed situation and authoritative previews before the run begins. If live generation is disabled or unavailable, authored fallback content keeps the run moving.</p><button className="mt-7 min-h-12 rounded-xl bg-accent px-6 py-3 font-bold text-on-accent transition-colors hover:bg-accent-hover disabled:cursor-wait disabled:opacity-60" disabled={isPending} onClick={() => void startDirectorSimulation()} type="button">{pendingOperation === "start" ? "Starting Director…" : "Start Director Simulation"}</button></>
           )}
         </div>
       ) : (
@@ -389,7 +397,7 @@ export function DirectorGameplayScreen({
           <MetricCharts series={metricSeries} />
 
           {!terminal && activeProposal !== null && <>
-            <DirectorSituationCard situation={activeProposal.proposal.payload.situation} turn={activeProposal.proposal.payload.turn} />
+            <DirectorSituationCard situation={activeProposal.proposal.payload.situation} source={activeProposal.proposal.payload.source} turn={activeProposal.proposal.payload.turn} />
             <DirectorChoiceList choices={activeProposal.proposal.payload.choices} previews={activeProposal.previews} selectedChoiceId={session.selectedChoiceId} disabled={isPending} onSelect={(selectedChoiceId) => setSession((current) => current === null ? null : { ...current, selectedChoiceId })} metrics={session.scenario.metrics} />
             <section className="rounded-3xl border border-line bg-surface p-5 sm:p-7">
               <h2 className="text-xl font-bold text-primary">Confirm your choice</h2>
@@ -465,9 +473,9 @@ function emptyDirectorHistory(scenarioId: string, scenarioVersion: string, seed:
   };
 }
 
-function makeSave(session: Pick<DirectorSession, "scenarioId" | "scenarioVersion" | "seed" | "turnRecords">): SavedDirectorRun {
+function makeHistory(session: Pick<DirectorSession, "scenarioId" | "scenarioVersion" | "seed" | "turnRecords">): DirectorReplayHistory {
   return {
-    format_version: DIRECTOR_SAVE_FORMAT_VERSION,
+    format_version: 2,
     mode: "director",
     scenario_id: session.scenarioId,
     scenario_version: session.scenarioVersion,
@@ -475,6 +483,14 @@ function makeSave(session: Pick<DirectorSession, "scenarioId" | "scenarioVersion
     profile_id: DIRECTOR_PROFILE_ID,
     profile_version: DIRECTOR_PROFILE_VERSION,
     turn_records: [...session.turnRecords],
+  };
+}
+
+function makeSave(session: Pick<DirectorSession, "scenarioId" | "scenarioVersion" | "seed" | "turnRecords" | "proposal">): SavedDirectorRun {
+  const history = makeHistory(session);
+  return {
+    ...history,
+    ...(session.proposal === null ? {} : { pending_proposal: session.proposal.proposal }),
   };
 }
 
@@ -494,12 +510,14 @@ function assertReplayMatchesSave(
   save: SavedDirectorRun,
   initialState: GameState,
 ) {
+  const expectedPending = save.pending_proposal ?? null;
   if (
     replay.scenario_id !== save.scenario_id || replay.scenario_version !== save.scenario_version || replay.seed !== save.seed ||
     replay.state.decision_history.length !== save.turn_records.length ||
     replay.state.seed.seed !== save.seed ||
     replay.state.scenario_id !== initialState.scenario_id ||
-    replay.state.scenario_version !== initialState.scenario_version
+    replay.state.scenario_version !== initialState.scenario_version ||
+    JSON.stringify(replay.pending_proposal ?? null) !== JSON.stringify(expectedPending)
   ) {
     throw new Error("The backend returned a replay inconsistent with the saved Director records.");
   }
@@ -514,6 +532,16 @@ function assertReplayMatchesSave(
       replay.latest_turn_result.new_state.current_turn !== replay.state.current_turn ||
       JSON.stringify(replay.latest_turn_result.new_state.metric_values) !== JSON.stringify(replay.state.metric_values)
     ) throw new Error("The backend returned a replay inconsistent with the saved Director records.");
+  }
+  if (expectedPending !== null) {
+    if (
+      replay.pending_proposal === null || replay.pending_proposal === undefined ||
+      replay.pending_previews === undefined ||
+      replay.pending_previews.length !== replay.pending_proposal.payload.choices.length ||
+      !replay.pending_proposal.payload.choices.every((choice) =>
+        replay.pending_previews?.some((preview) => preview.choice_id === choice.choice_id),
+      )
+    ) throw new Error("The backend did not restore the pending proposal with authoritative previews.");
   }
 }
 

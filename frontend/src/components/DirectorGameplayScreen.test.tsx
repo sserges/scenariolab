@@ -134,6 +134,86 @@ test("loads and renders the fallback situation, generated choices, previews, and
   expect(screen.getByRole("button", { name: "Confirm Director Choice" })).toBeDisabled();
 });
 
+test("labels a live generated proposal distinctly", async () => {
+  const liveProposal = {
+    ...directorInitialProposalFixture,
+    proposal: {
+      ...directorInitialProposalFixture.proposal,
+      payload: { ...directorInitialProposalFixture.proposal.payload, source: "live" as const },
+    },
+  };
+  const fetchMock = vi.fn((input: RequestInfo | URL) => {
+    const url = String(input);
+    if (url.endsWith("/api/games/start")) return Promise.resolve(jsonResponse(gameStartFixture));
+    if (url.endsWith("/api/ai/director/proposal")) return Promise.resolve(jsonResponse(liveProposal));
+    return Promise.reject(new Error(`Unexpected request: ${url}`));
+  });
+  vi.stubGlobal("fetch", fetchMock);
+  renderGameplay();
+  startDirector();
+
+  expect(await screen.findByRole("heading", { name: "Supplier terms need a decision 1" })).toBeInTheDocument();
+  expect(screen.getByLabelText("Situation source: AI generated")).toHaveTextContent("AI generated");
+});
+
+test("restores a valid pending proposal from replay without requesting a replacement", async () => {
+  const pending = directorInitialProposalFixture.proposal;
+  const save: SavedDirectorRun = {
+    ...directorHistoryFixture(),
+    format_version: DIRECTOR_SAVE_FORMAT_VERSION,
+    pending_proposal: pending,
+  };
+  const replay = {
+    ...directorReplayResponseFor(directorHistoryFixture(), gameStartFixture.state, null, null),
+    pending_proposal: pending,
+    pending_previews: directorInitialProposalFixture.previews,
+  };
+  const fetchMock = vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
+    const url = String(input);
+    if (url.endsWith("/api/games/start")) return Promise.resolve(jsonResponse(gameStartFixture));
+    if (url.endsWith("/api/ai/director/replay")) {
+      expect(JSON.parse(String(init?.body))).toHaveProperty("pending_proposal", pending);
+      return Promise.resolve(jsonResponse(replay));
+    }
+    return Promise.reject(new Error(`Unexpected request: ${url}`));
+  });
+  vi.stubGlobal("fetch", fetchMock);
+  renderGameplay(save);
+
+  expect(await screen.findByRole("heading", { name: "Supplier terms need a decision 1" })).toBeInTheDocument();
+  expect(screen.getByRole("radio", { name: /Fund a demand test/ })).toBeEnabled();
+  expect(fetchMock.mock.calls.filter(([url]) => String(url).endsWith("/api/ai/director/proposal"))).toHaveLength(0);
+});
+
+test("rejects a tampered pending proposal and preserves the existing valid local save", async () => {
+  const valid: SavedDirectorRun = {
+    ...directorHistoryFixture(),
+    format_version: DIRECTOR_SAVE_FORMAT_VERSION,
+    pending_proposal: directorInitialProposalFixture.proposal,
+  };
+  const tampered: SavedDirectorRun = {
+    ...valid,
+    pending_proposal: {
+      ...valid.pending_proposal!,
+      signature: { ...valid.pending_proposal!.signature, value: "B".repeat(43) },
+    },
+  };
+  localStorage.setItem(SAVE_STORAGE_KEY, JSON.stringify(valid));
+  const fetchMock = vi.fn((input: RequestInfo | URL) => {
+    const url = String(input);
+    if (url.endsWith("/api/games/start")) return Promise.resolve(jsonResponse(gameStartFixture));
+    if (url.endsWith("/api/ai/director/replay")) return Promise.resolve(jsonResponse({ detail: { code: "invalid_director_signature", message: "Proposal signature invalid." } }, 422));
+    return Promise.reject(new Error(`Unexpected request: ${url}`));
+  });
+  vi.stubGlobal("fetch", fetchMock);
+  const saveChange = renderGameplay(tampered);
+
+  expect(await screen.findByText(/backend rejected the saved signed history/i)).toBeInTheDocument();
+  expect(localStorage.getItem(SAVE_STORAGE_KEY)).toBe(JSON.stringify(valid));
+  expect(saveChange).not.toHaveBeenCalled();
+  expect(fetchMock.mock.calls.filter(([url]) => String(url).endsWith("/api/ai/director/proposal"))).toHaveLength(0);
+});
+
 test("submits a selected signed choice and updates only from the authoritative turn response", async () => {
   const proposal = directorInitialProposalFixture;
   const turn = turnResponseFor(proposal.proposal, proposal.proposal.payload.choices[1]!.choice_id);

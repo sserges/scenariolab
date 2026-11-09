@@ -32,9 +32,11 @@ class Settings(BaseSettings):
     ai_base_url: AnyHttpUrl = AnyHttpUrl("https://api.openai.com/v1")
     ai_timeout_seconds: float = Field(default=10.0, ge=1.0, le=30.0)
     ai_max_response_tokens: int = Field(default=500, ge=100, le=800)
+    director_max_response_tokens: int = Field(default=800, ge=100, le=800)
     ai_provider_calls_per_minute: int = Field(default=20, ge=1, le=120)
     ai_max_concurrent_provider_calls: int = Field(default=2, ge=1, le=32)
     director_enabled: bool = False
+    director_live_generation_enabled: bool = False
     director_active_signing_key_id: Annotated[
         str,
         StringConstraints(pattern=r"^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$", max_length=64),

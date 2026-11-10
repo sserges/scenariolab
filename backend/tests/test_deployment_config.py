@@ -110,6 +110,48 @@ def test_checked_in_production_environment_template_parses() -> None:
     assert settings.ai_provider_calls_per_minute == 5
     assert settings.ai_max_concurrent_provider_calls == 1
     assert settings.director_max_response_tokens == 800
+    assert settings.director_enabled is True
+    assert settings.director_live_generation_enabled is False
+
+
+def test_public_fallback_template_runs_director_without_provider_credentials() -> None:
+    template = Path(__file__).resolve().parents[1] / ".env.production.example"
+    settings = Settings(
+        _env_file=template,
+        director_active_signing_key_id="release-test",
+        director_signing_keys={
+            "release-test": SecretStr("release-test-only-key-material-at-least-32-bytes")
+        },
+    )
+    application = create_app(settings)
+    history = {
+        "format_version": 2,
+        "mode": "director",
+        "scenario_id": "startup-survival",
+        "scenario_version": "1.0.0",
+        "seed": 42,
+        "profile_id": "startup-survival-director",
+        "profile_version": "1.0.0",
+        "turn_records": [],
+    }
+
+    response = asyncio.run(_post_director_proposal(application, history))
+
+    assert settings.ai_enabled is False
+    assert settings.ai_api_key is None
+    assert settings.director_enabled is True
+    assert settings.director_live_generation_enabled is False
+    assert response.status_code == 200
+    assert response.json()["proposal"]["payload"]["source"] == "fallback"
+
+
+async def _post_director_proposal(application: object, history: dict[str, object]) -> httpx.Response:
+    transport = httpx.ASGITransport(app=application)
+    async with httpx.AsyncClient(
+        transport=transport,
+        base_url="http://testserver",
+    ) as client:
+        return await client.post("/api/ai/director/proposal", json=history)
 
 
 def test_production_settings_reject_http_frontend_origin() -> None:

@@ -12,6 +12,8 @@ The first playable definition is **Startup Survival**: manage a startup over 12 
 
 **Brick 8A: deployment and security readiness** is prepared locally: safe production configuration, request and provider concurrency bounds, container and static-host guidance, and submission documentation are in place. The application has not been deployed. Shared edge rate limiting and origin protection remain required before enabling billable AI on a public endpoint.
 
+**Brick 8B: public release candidate preparation** is in progress. The intended production configuration enables signed Director gameplay with authored fallback situations while keeping `SCENARIOLAB_AI_ENABLED=false` and `SCENARIOLAB_DIRECTOR_LIVE_GENERATION_ENABLED=false`; no provider key is needed or authorized. See [docs/deployment.md](docs/deployment.md) for Render and Cloudflare Pages settings, stable signing key handling, the release smoke plan, and rollback steps. Public deployment remains unchecked, and local Docker image verification is pending because the Docker engine is unavailable.
+
 **Brick 9B-2A and Brick 9B-2B: Director gameplay and mocked live-generation integration** are implemented and verified. One separately authorized live smoke request returned HTTP 200, but the generated candidate was rejected and authored fallback was returned; live generation remains unverified. Startup Survival offers Classic Simulation and an optional AI Scenario Director mode. Director stays disabled unless `SCENARIOLAB_DIRECTOR_ENABLED=true` and signing keys are configured. Live proposal generation also requires `SCENARIOLAB_DIRECTOR_LIVE_GENERATION_ENABLED=true` and `SCENARIOLAB_AI_ENABLED=true`; both live flags default to false. Valid AI candidates are signed only after strict profile validation and deterministic engine previews. Provider failure or invalid output selects deterministic authored fallback. Version-2 saves preserve the signed pending proposal and completed records; version-1 Classic saves remain unchanged. Public billable generation remains blocked on shared rate limits, origin-bypass protection, and provider spending controls.
 
 ## Official predefined scenarios
@@ -236,7 +238,7 @@ The browser requests at most one briefing after each accepted turn in a single 1
 
 ## Deployment readiness
 
-See [docs/deployment.md](docs/deployment.md) for production environment templates, the container build, frontend build settings, HTTPS/CORS, health checks, hosting options, and remaining public-deployment controls. No infrastructure has been created or deployed.
+See [docs/deployment.md](docs/deployment.md) for exact Render and Cloudflare Pages settings, the fallback-only production variables, stable signing key handling, HTTPS/CORS, health checks, release smoke plan, and rollback steps. No infrastructure has been created or deployed.
 
 ## Run tests and builds
 

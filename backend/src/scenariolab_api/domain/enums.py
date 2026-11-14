@@ -20,6 +20,13 @@ class AvailabilityStatus(StrEnum):
     PLANNED = "planned"
 
 
+class ScenarioAIFeature(StrEnum):
+    """Optional AI capabilities a catalog entry explicitly opts into."""
+
+    SCENARIO_DIRECTOR = "scenario-director"
+    LIVE_BRIEFINGS = "live-briefings"
+
+
 class MetricKind(StrEnum):
     COUNT = "count"
     MONEY = "money"
@@ -35,6 +42,8 @@ class MetricUnit(StrEnum):
     PERCENT = "percent"
     POINTS = "points"
     UNITS = "units"
+    HOURS = "hours"
+    DAYS = "days"
 
 
 class DisplayStyle(StrEnum):
@@ -82,6 +91,8 @@ class TurnUnit(StrEnum):
     WEEK = "week"
     MONTH = "month"
     YEAR = "year"
+    ROUND = "round"
+    CYCLE = "cycle"
 
 
 class GameStatus(StrEnum):

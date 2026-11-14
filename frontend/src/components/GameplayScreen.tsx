@@ -1,6 +1,6 @@
 import { useState } from "react";
 
-import type { ScenarioCatalogEntry, ScenarioDefinition } from "../lib/api";
+import { hasAIFeature, type ScenarioCatalogEntry, type ScenarioDefinition } from "../lib/api";
 import { isSavedDirectorRun } from "../lib/savedRun";
 import type { SaveReadResult, SavedDirectorRun, SavedRun, SavedScriptedRun } from "../lib/savedRun";
 import { ClassicGameplayScreen } from "./ClassicGameplayScreen";
@@ -34,6 +34,7 @@ export function GameplayScreen({
   const classicSave = resumeSave !== null && !isSavedDirectorRun(resumeSave)
     ? resumeSave as SavedScriptedRun
     : null;
+  const directorSupported = hasAIFeature(catalogEntry, "scenario-director");
 
   if (mode === null) {
     return (
@@ -46,13 +47,15 @@ export function GameplayScreen({
           <span aria-hidden="true">←</span> Scenario library
         </button>
         <header className="rounded-3xl border border-accent/20 bg-surface p-6 shadow-2xl shadow-black/20 sm:p-9">
-          <p className="text-xs font-bold uppercase tracking-[0.2em] text-accent">Startup Survival</p>
+          <p className="text-xs font-bold uppercase tracking-[0.2em] text-accent">{humanizeCategory(catalogEntry.category)} scenario</p>
           <h1 className="mt-4 text-4xl font-black tracking-tight text-primary sm:text-5xl" id="gameplay-mode-heading">
             {scenarioDefinition.title}
           </h1>
           <h2 className="mt-2 text-xl font-bold text-primary">Choose your simulation mode</h2>
           <p className="mt-4 max-w-3xl text-base leading-7 text-secondary sm:text-lg sm:leading-8">
-            Choose a familiar scripted run or let the Scenario Director present signed situations and choices.
+            {directorSupported
+              ? "Choose a familiar scripted run or let the Scenario Director present signed situations and choices."
+              : "This scenario plays as a deterministic Classic Simulation with authored situations and replayable results."}
           </p>
           <p className="mt-3 max-w-3xl text-sm leading-6 text-secondary">{scenarioDefinition.metadata.objective}</p>
         </header>
@@ -63,15 +66,24 @@ export function GameplayScreen({
             onClick={() => setMode("classic")}
             title="Classic Simulation"
           />
-          <ModeCard
-            badge="Authored fallback situations"
-            description="A signed Director proposal presents situation-specific choices and authoritative previews. Live generation is optional and off by default."
-            onClick={() => setMode("director")}
-            title="AI Scenario Director"
-          />
+          {directorSupported ? (
+            <ModeCard
+              badge="Authored fallback situations"
+              description="A signed Director proposal presents situation-specific choices and authoritative previews. Live generation is optional and off by default."
+              onClick={() => setMode("director")}
+              title="AI Scenario Director"
+            />
+          ) : (
+            <UnavailableModeCard
+              description={`AI Scenario Director is not available for ${scenarioDefinition.title}. Director profiles currently exist only for Startup Survival, so this scenario uses Classic Simulation.`}
+              title="AI Scenario Director"
+            />
+          )}
         </div>
         <p className="mt-5 rounded-2xl border border-line bg-tint p-4 text-sm leading-6 text-secondary">
-          Director availability is controlled by the backend. If it is disabled, the API will say so and Classic Simulation remains available.
+          {directorSupported
+            ? "Director availability is controlled by the backend. If it is disabled, the API will say so and Classic Simulation remains available."
+            : "No AI requests are made to generate situations or decisions in this scenario. Events, decisions, and outcomes come from its validated scenario definition."}
         </p>
       </section>
     );
@@ -80,7 +92,7 @@ export function GameplayScreen({
   const switchMode = () => setMode(null);
   const hasExistingProgress = existingSave !== null;
 
-  if (mode === "director") {
+  if (mode === "director" && directorSupported) {
     return (
       <DirectorGameplayScreen
         catalogEntry={catalogEntry}
@@ -105,6 +117,26 @@ export function GameplayScreen({
       scenarioDefinition={scenarioDefinition}
     />
   );
+}
+
+function UnavailableModeCard({ description, title }: { description: string; title: string }) {
+  return (
+    <div
+      aria-disabled="true"
+      className="rounded-3xl border border-dashed border-line bg-tint p-6 text-left sm:p-8"
+      data-testid="director-unavailable"
+    >
+      <span className="inline-flex rounded-full border border-line px-3 py-1 text-xs font-bold uppercase tracking-wider text-secondary">
+        Not available for this scenario
+      </span>
+      <span className="mt-5 block text-2xl font-bold tracking-tight text-secondary">{title}</span>
+      <span className="mt-3 block text-sm leading-7 text-secondary">{description}</span>
+    </div>
+  );
+}
+
+function humanizeCategory(category: string): string {
+  return category.charAt(0).toUpperCase() + category.slice(1).replaceAll("-", " ");
 }
 
 function ModeCard({

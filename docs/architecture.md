@@ -4,7 +4,7 @@
 
 ScenarioLab must run many decision simulations through one engine. Startup Survival is the first content package, not an engine special case. A scenario is declarative, portable, versioned data. Python calculates authoritative outcomes; AI supplies optional content and explanations inside a strict validation boundary.
 
-The official predefined catalog contains Startup Survival, Cybersecurity Crisis, and Space Colony. Catalog presence is not playability: Startup Survival has a complete available definition, while Cybersecurity Crisis and the 50-astronaut Space Colony remain planned until their definitions and tests are complete. The implementation order is Startup Survival MVP first, followed by the two planned scenarios after the generic engine is proven.
+The official predefined catalog contains Startup Survival, Cybersecurity Crisis, and Space Colony. Catalog presence is not playability by itself, but since Brick 9C all three entries have complete available definitions. Cybersecurity Crisis and the 50-astronaut Space Colony were added as data only, with no engine changes. Their mechanics are documented in `docs/scenarios.md`.
 
 The design optimizes for:
 
@@ -117,7 +117,7 @@ A run pins both `schema_version` and the pair (`scenario_id`, `version`). Saved 
 
 ### 3.4 Turn model
 
-`turn.duration` is a positive integer and `turn.unit` is an allowlisted value such as `day`, `week`, `month`, or `year`. `turn.max_turns` is a bounded positive integer. Startup Survival uses one month per turn and a limit of 12.
+`turn.duration` is a positive integer and `turn.unit` is an allowlisted value: `day`, `week`, `month`, `year`, `round`, or `cycle`. The last two are presentation labels for non-calendar decision turns. `turn.max_turns` is a bounded positive integer. Startup Survival uses one month per turn, Cybersecurity Crisis one round, and Space Colony one mission cycle, each with a limit of 12.
 
 The unit communicates simulated time; it does not schedule wall-clock jobs. The engine advances exactly one turn after an accepted decision and all ordered consequences for that turn complete.
 
@@ -130,7 +130,7 @@ All measurable state uses a `MetricDefinition`:
 | `metric_id` | stable ID | Effect and condition target |
 | `label` / `description` | bounded text | Display content |
 | `kind` | enum | `resource`, `score`, `rate`, `count`, or `index` |
-| `unit` | enum | Machine unit such as `cents`, `people`, `users`, `percent`, `points`, or `units` |
+| `unit` | enum | Machine unit: `cents`, `people`, `users`, `percent`, `points`, `units`, `hours`, or `days` |
 | `min_value` / `max_value` | integers | Inclusive hard bounds |
 | `capacity` | optional value/reference | Operational capacity at or below the hard maximum |
 | `initial_value` | number | Canonical starting value |
@@ -236,8 +236,10 @@ The engine owns algorithms and turn advancement. The definition chooses only all
 `ScenarioCatalogEntry` is discovery metadata: ID, title, description, category, objective, availability, and planned key metrics. The catalog contains exactly three official entries:
 
 - `startup-survival` — `available`;
-- `cybersecurity-crisis` — `planned`; and
-- `space-colony` — `planned`, with an intended initial population of 50 astronauts.
+- `cybersecurity-crisis` — `available`; and
+- `space-colony` — `available`, with a crew of 50 astronauts.
+
+Each entry also declares `ai_features`, an allowlist of `scenario-director` and `live-briefings`. Only Startup Survival opts in. The briefing route calls a provider only for entries with `live-briefings`. The UI offers Director mode only for entries with `scenario-director`, and the backend still enforces the pinned Director profile independently.
 
 Catalog entries do not contain actions, events, or authoritative initial state. Only available entries may resolve to a `ScenarioDefinition`. `GET /api/scenarios/{scenario_id}` returns HTTP 409 with `scenario_not_available` for planned entries and HTTP 404 with `scenario_not_found` for unknown IDs.
 
@@ -305,7 +307,7 @@ Proposals and receipts use canonical UTF-8 JSON, domain-separated SHA-256 digest
 
 ### 5.1.2 Director UI and version-2 saves (Brick 9B-2A)
 
-Startup Survival presents **Classic Simulation** and **AI Scenario Director** as separate gameplay modes. Classic remains the default selection. Director calls the existing proposal, turn, and replay routes and never calls the briefing route. Its source indicator reports the signed proposal source as **AI generated** or **Authored fallback**. The situation card, choice cards, authoritative previews, confirmation, resulting metric changes, curated event, ordered history, charts, and terminal report use reusable React components and the existing Classic/Dark theme tokens. Cybersecurity Crisis and Space Colony remain Coming Soon.
+Startup Survival presents **Classic Simulation** and **AI Scenario Director** as separate gameplay modes. Classic remains the default selection. Director calls the existing proposal, turn, and replay routes and never calls the briefing route. Its source indicator reports the signed proposal source as **AI generated** or **Authored fallback**. The situation card, choice cards, authoritative previews, confirmation, resulting metric changes, curated event, ordered history, charts, and terminal report use reusable React components and the existing Classic/Dark theme tokens. Cybersecurity Crisis and Space Colony do not offer Director mode (Brick 9C); their mode screen explains this and offers Classic Simulation.
 
 The Director API must be enabled by backend configuration; the default is disabled. The frontend does not infer the flag or bypass it. Selecting Director starts or reconstructs the game through the server, then requests a proposal. A structured `director_disabled` or signing-unavailable response explains that Director cannot start and offers Classic Simulation. The proposal and turn routes validate signatures and exact current state on the backend. React updates metrics, history, and saves only after an accepted turn response.
 
@@ -329,7 +331,7 @@ Each proposal request makes at most one provider attempt, uses bounded prompt/re
 
 React keeps the accepted scenario metadata, original seed, ordered action IDs, server-provided initial metric values, latest `GameState`, returned `DecisionRecord` history, and optional in-memory AI briefings needed to render the page. It never calculates new game state. Metric cards and charts iterate returned `MetricDefinition` values and use unit, format, currency code, suffix, decimals, and `favorable_direction` for presentation. Integer cents are divided by 100 only while formatting values for display.
 
-The gameplay flow is scenario selection, explicit start, decision selection, confirmation, result display, and either the next decision or a terminal restart. Network, structured API, and response-validation failures leave the last accepted session unchanged and expose retry. A synchronous request guard and disabled controls prevent duplicate submissions. Cybersecurity Crisis, Space Colony, and custom generation remain noninteractive planned content.
+The gameplay flow is scenario selection, explicit start, decision selection, confirmation, result display, and either the next decision or a terminal restart. Network, structured API, and response-validation failures leave the last accepted session unchanged and expose retry. A synchronous request guard and disabled controls prevent duplicate submissions. Custom generation remains noninteractive planned content.
 
 ### 5.3 Dashboard, history, and browser persistence (Brick 7)
 

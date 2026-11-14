@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from "react";
 import {
   ApiError,
   getAIBriefing,
+  hasAIFeature,
   playTurn,
   startGame,
   type AIBriefingResponse,
@@ -23,6 +24,7 @@ import {
   writeSavedRun,
 } from "../lib/savedRun";
 import type { SaveReadResult, SavedScriptedRun, SaveWriteResult } from "../lib/savedRun";
+import { turnLabel } from "../lib/turns";
 import { DecisionHistory } from "./DecisionHistory";
 import { EndGameReport } from "./EndGameReport";
 import { MetricCharts } from "./MetricCharts";
@@ -317,6 +319,7 @@ export function ClassicGameplayScreen({
 
   const scenarioTitle = session?.scenario.title ?? scenarioDefinition.title ?? catalogEntry.title;
   const objective = session?.scenario.objective ?? scenarioDefinition.metadata.objective ?? catalogEntry.objective;
+  const liveBriefings = hasAIFeature(catalogEntry, "live-briefings");
 
   return (
     <section aria-labelledby="gameplay-title" className="pb-12">
@@ -398,7 +401,8 @@ export function ClassicGameplayScreen({
             <div aria-live="polite" className="mx-auto max-w-xl" role="status">
               <h2 className="text-2xl font-bold text-primary">Resuming saved simulation</h2>
               <p className="mt-3 leading-7 text-secondary">
-                The backend is replaying the saved decisions from the original seed. Past turns will not request AI briefings.
+                The backend is replaying the saved decisions from the original seed.{" "}
+                {liveBriefings ? "Past turns will not request AI briefings." : "Past turns will not request new briefings."}
               </p>
             </div>
           ) : (
@@ -426,6 +430,7 @@ export function ClassicGameplayScreen({
           briefingStatus={briefingStatus}
           definition={scenarioDefinition}
           isPending={isPending}
+          liveBriefings={liveBriefings}
           onRestart={() => void beginSimulation()}
           onSelectAction={setSelectedActionId}
           onSubmit={() => void submitDecision()}
@@ -446,6 +451,7 @@ interface GameBoardProps {
   briefingStatus: BriefingStatus;
   selectedActionId: string | null;
   isPending: boolean;
+  liveBriefings: boolean;
   persistenceStatus: SaveWriteResult | "idle";
   onSelectAction: (actionId: string) => void;
   onSubmit: () => void;
@@ -460,6 +466,7 @@ function GameBoard({
   briefingStatus,
   selectedActionId,
   isPending,
+  liveBriefings,
   persistenceStatus,
   onSelectAction,
   onSubmit,
@@ -483,7 +490,7 @@ function GameBoard({
           <div>
             <p className="text-xs font-bold uppercase tracking-wider text-secondary">Simulation progress</p>
             <h2 aria-live="polite" className="mt-1 text-xl font-bold text-primary" id="turn-progress-heading">
-              {capitalize(session.scenario.turn.unit)} {session.state.current_turn} of {session.state.max_turns}
+              {turnLabel(session.scenario.turn.unit)} {session.state.current_turn} of {session.state.max_turns}
             </h2>
             <p className="mt-1 text-sm text-secondary">
               {completedTurns} {completedTurns === 1 ? "decision" : "decisions"} completed
@@ -582,8 +589,10 @@ function GameBoard({
           <AIBriefingPanel
             briefing={briefing}
             completedTurn={session.lastResult.completed_turn_index}
+            liveBriefings={liveBriefings}
             restored={briefing === null && briefingStatus === "idle"}
             status={briefingStatus}
+            turnUnit={session.scenario.turn.unit}
           />
         </section>
       )}
@@ -591,6 +600,7 @@ function GameBoard({
       <DecisionHistory
         briefingsByTurn={briefingsByTurn}
         definition={definition}
+        liveBriefings={liveBriefings}
         records={session.state.decision_history}
         turnUnit={session.scenario.turn.unit}
       />
@@ -655,7 +665,7 @@ function TurnSummary({ result, turnUnit }: { result: TurnResult; turnUnit: strin
     <section aria-labelledby="turn-summary-heading" className="rounded-3xl border border-accent/15 bg-accent/5 p-5 sm:p-6">
       <p className="text-sm font-semibold text-accent">Latest authoritative result</p>
       <h2 className="mt-1 text-xl font-bold text-primary" id="turn-summary-heading">
-        {capitalize(turnUnit)} {result.completed_turn_index} resolved
+        {turnLabel(turnUnit)} {result.completed_turn_index} resolved
       </h2>
       <dl className="mt-4 grid gap-4 sm:grid-cols-2">
         <div>
@@ -683,19 +693,27 @@ function TurnSummary({ result, turnUnit }: { result: TurnResult; turnUnit: strin
 function AIBriefingPanel({
   briefing,
   completedTurn,
+  liveBriefings,
   restored,
   status,
+  turnUnit,
 }: {
   briefing: AIBriefingResponse | null;
   completedTurn: number;
+  liveBriefings: boolean;
   restored: boolean;
   status: BriefingStatus;
+  turnUnit: string;
 }) {
+  // Scenarios without a live-briefing opt-in only ever receive authored fallback
+  // text from the backend, so they are never labeled as AI-generated.
+  const eyebrow = liveBriefings ? "AI strategic briefing" : "Strategic briefing";
+  const turnName = liveBriefings ? "Turn" : turnLabel(turnUnit);
   if (status === "loading") {
     return (
       <section aria-labelledby="ai-briefing-heading" aria-live="polite" className="rounded-3xl border border-briefing/20 bg-briefing/5 p-5 sm:p-6">
-        <p className="text-sm font-semibold text-briefing">AI strategic briefing</p>
-        <h2 className="mt-1 text-xl font-bold text-primary" id="ai-briefing-heading">Turn {completedTurn} briefing</h2>
+        <p className="text-sm font-semibold text-briefing">{eyebrow}</p>
+        <h2 className="mt-1 text-xl font-bold text-primary" id="ai-briefing-heading">{turnName} {completedTurn} briefing</h2>
         <p className="mt-3 text-sm text-secondary" role="status">Preparing briefing…</p>
       </section>
     );
@@ -703,8 +721,8 @@ function AIBriefingPanel({
   if (status === "failed") {
     return (
       <section aria-labelledby="ai-briefing-heading" aria-live="polite" className="rounded-3xl border border-line bg-tint p-5 sm:p-6">
-        <p className="text-sm font-semibold text-secondary">AI briefing unavailable</p>
-        <h2 className="mt-1 text-xl font-bold text-primary" id="ai-briefing-heading">Turn {completedTurn} remains authoritative</h2>
+        <p className="text-sm font-semibold text-secondary">{liveBriefings ? "AI briefing unavailable" : "Briefing unavailable"}</p>
+        <h2 className="mt-1 text-xl font-bold text-primary" id="ai-briefing-heading">{turnName} {completedTurn} remains authoritative</h2>
         <p className="mt-3 text-sm leading-6 text-secondary">The engine result is complete. You can continue playing without a briefing.</p>
       </section>
     );
@@ -712,11 +730,13 @@ function AIBriefingPanel({
   if (briefing === null) {
     return (
       <section aria-labelledby="ai-briefing-heading" className="rounded-3xl border border-briefing/15 bg-briefing/5 p-5 sm:p-6">
-        <p className="text-sm font-semibold text-briefing">AI strategic briefing</p>
+        <p className="text-sm font-semibold text-briefing">{eyebrow}</p>
         <h2 className="mt-1 text-xl font-bold text-primary" id="ai-briefing-heading">Narrative explanation</h2>
         <p className="mt-3 text-sm leading-6 text-secondary">
           {restored
-            ? "Past turns were restored from the authoritative replay. No AI requests were made during resume; a new briefing will follow your next decision."
+            ? liveBriefings
+              ? "Past turns were restored from the authoritative replay. No AI requests were made during resume; a new briefing will follow your next decision."
+              : "Past turns were restored from the authoritative replay. A new authored briefing will follow your next decision."
             : "A briefing will appear after an accepted decision."}
         </p>
       </section>
@@ -726,11 +746,11 @@ function AIBriefingPanel({
     <section aria-labelledby="ai-briefing-heading" className="rounded-3xl border border-briefing/20 bg-briefing/5 p-5 sm:p-6">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <p className="text-sm font-semibold text-briefing">AI strategic briefing</p>
+          <p className="text-sm font-semibold text-briefing">{eyebrow}</p>
           <h2 className="mt-1 text-xl font-bold text-primary" id="ai-briefing-heading">{briefing.headline}</h2>
         </div>
         <span className="rounded-full border border-line bg-tint px-3 py-1 text-xs font-bold uppercase tracking-wider text-primary">
-          {briefing.source === "live" ? "Live AI" : "Deterministic fallback"}
+          {!liveBriefings ? "Authored briefing" : briefing.source === "live" ? "Live AI" : "Deterministic fallback"}
         </span>
       </div>
       <p className="mt-3 text-sm leading-6 text-secondary">{briefing.situation_summary}</p>
@@ -745,7 +765,7 @@ function AIBriefingPanel({
         </div>
       </dl>
       <div className="mt-4 rounded-2xl border border-line bg-inset p-4">
-        <p className="text-xs font-bold uppercase tracking-wider text-secondary">Next-turn teaser</p>
+        <p className="text-xs font-bold uppercase tracking-wider text-secondary">{liveBriefings ? "Next-turn teaser" : `Next ${turnUnit} outlook`}</p>
         <p className="mt-1 text-sm leading-6 text-secondary">{briefing.next_turn_teaser}</p>
       </div>
       <p className="mt-3 text-xs text-secondary">Narrative context only; event and metric records remain authoritative.</p>
@@ -830,10 +850,6 @@ function isTerminal(state: GameState): boolean {
 
 function humanize(value: string): string {
   return value.split("-").map((word) => word.charAt(0).toUpperCase() + word.slice(1)).join(" ");
-}
-
-function capitalize(value: string): string {
-  return value.charAt(0).toUpperCase() + value.slice(1);
 }
 
 function describeError(error: unknown): string {

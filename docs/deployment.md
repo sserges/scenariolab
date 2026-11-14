@@ -178,7 +178,7 @@ Devpost-ready Chromium screenshots are stored in artifacts/production-smoke-2026
 
 Run this against the deployed production URLs during a controlled validation window. Use a non-sensitive browser profile and retain no real secrets in DevTools exports or screenshots.
 
-1. **Public scenario catalog:** load the public site; confirm Startup Survival is playable, planned entries are labeled Coming Soon, and the catalog request returns successfully from the Render API.
+1. **Public scenario catalog:** load the public site; confirm Startup Survival, Cybersecurity Crisis, and Space Colony are all listed as Available (none Coming Soon) and the catalog request returns successfully from the Render API. Because the frontend reads the new catalog `ai_features` field, deploy the Render backend before the Pages frontend; an older backend would hide Startup Survival's Director mode.
 2. **Classic Simulation:** start a run and complete all 12 turns; confirm each metric and event result is server-returned and the game reaches its terminal report.
 3. **Fallback Director:** start AI Scenario Director and complete multiple turns; confirm each situation is labeled Authored fallback and the choices, previews, outcomes, and signed history advance.
 4. **Director v2 save/resume:** save a Director run with completed turns and a pending proposal, reload, continue it, and confirm replay restores the pending proposal without replacing completed records.

@@ -11,7 +11,7 @@ import {
 
 const backendUrl = "http://127.0.0.1:8010";
 
-test("homepage lists all predefined scenarios and only Startup Survival is available", async ({
+test("homepage lists all predefined scenarios as available", async ({
   page,
 }) => {
   await page.goto("/");
@@ -21,9 +21,11 @@ test("homepage lists all predefined scenarios and only Startup Survival is avail
   await expect(page.getByRole("heading", { name: "Startup Survival" })).toBeVisible();
   await expect(page.getByRole("heading", { name: "Cybersecurity Crisis" })).toBeVisible();
   await expect(page.getByRole("heading", { name: "Space Colony" })).toBeVisible();
-  await expect(page.getByRole("button", { name: "View Details" })).toBeEnabled();
-  await expect(page.getByRole("button", { name: "Coming Soon" })).toHaveCount(2);
-  await expect(page.getByRole("button", { name: "Coming Soon" }).first()).toBeDisabled();
+  await expect(page.getByRole("button", { name: "View Details" })).toHaveCount(3);
+  for (const button of await page.getByRole("button", { name: "View Details" }).all()) {
+    await expect(button).toBeEnabled();
+  }
+  await expect(page.getByRole("button", { name: "Coming Soon" })).toHaveCount(0);
 });
 
 test("Startup Survival starts through the real API and shows initial financial metrics", async ({

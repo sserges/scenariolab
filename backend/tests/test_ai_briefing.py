@@ -292,14 +292,56 @@ def test_briefing_endpoint_returns_mocked_live_response(
     assert context.current_metrics[0].value == 12_750_000
 
 
-def test_briefing_endpoint_rejects_unsupported_scenario() -> None:
+def test_briefing_endpoint_rejects_unknown_scenario() -> None:
     body = briefing_body()
-    body["scenario_id"] = "space-colony"
+    body["scenario_id"] = "not-registered"
 
     response = asyncio.run(post("/api/ai/briefing", body))
 
-    assert response.status_code == 409
-    assert response.json()["detail"]["code"] == "scenario_not_available"
+    assert response.status_code == 404
+    assert response.json()["detail"]["code"] == "scenario_not_found"
+
+
+@pytest.mark.parametrize(
+    ("scenario_id", "first_action"),
+    [
+        ("cybersecurity-crisis", "isolate-affected-systems"),
+        ("space-colony", "expand-hydroponics"),
+    ],
+)
+def test_scenarios_without_live_opt_in_never_call_the_provider(
+    scenario_id: str,
+    first_action: str,
+) -> None:
+    provider = FakeProvider()
+    application = create_app(Settings(_env_file=None, ai_api_key=None))
+    application.state.briefing_service = BriefingService(provider)
+    body = {
+        "scenario_id": scenario_id,
+        "scenario_version": "1.0.0",
+        "seed": 42,
+        "action_history": [first_action],
+    }
+
+    first = asyncio.run(post("/api/ai/briefing", body, application=application))
+    second = asyncio.run(post("/api/ai/briefing", body, application=application))
+
+    assert first.status_code == 200
+    result = BriefingResponse.model_validate(first.json())
+    assert result.source == "fallback"
+    assert second.json() == first.json()
+    assert provider.calls == 0
+    text = " ".join(
+        (
+            result.headline,
+            result.situation_summary,
+            result.consequence_explanation,
+            result.strategic_insight,
+            result.next_turn_teaser,
+        )
+    ).lower()
+    for startup_term in ("startup", "cash", "revenue", "customer", "month"):
+        assert startup_term not in text
 
 
 def test_briefing_endpoint_rejects_invalid_replay_before_provider_call(

@@ -25,6 +25,7 @@ from scenariolab_api.domain.enums import (
     MatchLogic,
     MetricKind,
     MetricUnit,
+    ScenarioAIFeature,
     ScenarioCategory,
     ScenarioSource,
     TurnUnit,
@@ -244,6 +245,17 @@ class ScenarioCatalogEntry(FrozenModel):
         Annotated[str, StringConstraints(min_length=1, max_length=80)],
         ...,
     ] = Field(min_length=1)
+    ai_features: tuple[ScenarioAIFeature, ...] = ()
+
+    @field_validator("ai_features", mode="after")
+    @classmethod
+    def validate_ai_features(
+        cls,
+        value: tuple[ScenarioAIFeature, ...],
+    ) -> tuple[ScenarioAIFeature, ...]:
+        if len(value) != len(set(value)):
+            raise ValueError("duplicate catalog AI features are not allowed")
+        return value
 
 
 class CalculationParameters(FrozenModel):

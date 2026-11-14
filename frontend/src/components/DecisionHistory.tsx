@@ -11,6 +11,8 @@ interface DecisionHistoryProps {
   turnUnit: string;
   definition: ScenarioDefinition;
   briefingsByTurn: Record<number, AIBriefingResponse>;
+  /** False for scenarios whose briefings are always authored fallback text. */
+  liveBriefings?: boolean;
 }
 
 export function DecisionHistory({
@@ -18,6 +20,7 @@ export function DecisionHistory({
   turnUnit,
   definition,
   briefingsByTurn,
+  liveBriefings = true,
 }: DecisionHistoryProps) {
   const metrics = new Map(definition.metrics.map((metric) => [metric.metric_id, metric]));
   const events = new Map(definition.events.map((event) => [event.event_id, event]));
@@ -45,6 +48,7 @@ export function DecisionHistory({
               briefing={briefingsByTurn[record.turn] ?? null}
               events={events}
               key={`${record.sequence}-${record.action_id}`}
+              liveBriefings={liveBriefings}
               metrics={metrics}
               record={record}
               turnUnit={turnUnit}
@@ -59,12 +63,14 @@ export function DecisionHistory({
 function DecisionHistoryEntry({
   briefing,
   events,
+  liveBriefings,
   metrics,
   record,
   turnUnit,
 }: {
   briefing: AIBriefingResponse | null;
   events: Map<string, ScenarioDefinition["events"][number]>;
+  liveBriefings: boolean;
   metrics: Map<string, MetricDefinition>;
   record: DecisionRecord;
   turnUnit: string;
@@ -136,11 +142,11 @@ function DecisionHistoryEntry({
       </p>
 
       {briefing !== null && (
-        <aside aria-label="AI narrative for this turn" className="mt-4 rounded-2xl border border-briefing/15 bg-briefing/5 p-4">
+        <aside aria-label={liveBriefings ? "AI narrative for this turn" : "Briefing for this turn"} className="mt-4 rounded-2xl border border-briefing/15 bg-briefing/5 p-4">
           <div className="flex flex-wrap items-center justify-between gap-2">
-            <p className="text-xs font-bold uppercase tracking-wider text-briefing">AI explanation</p>
+            <p className="text-xs font-bold uppercase tracking-wider text-briefing">{liveBriefings ? "AI explanation" : "Briefing"}</p>
             <span className="text-xs font-semibold text-secondary">
-              {briefing.source === "live" ? "Live AI" : "Deterministic fallback"}
+              {!liveBriefings ? "Authored briefing" : briefing.source === "live" ? "Live AI" : "Deterministic fallback"}
             </span>
           </div>
           <h4 className="mt-2 font-semibold text-primary">{briefing.headline}</h4>

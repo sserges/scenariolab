@@ -32,17 +32,32 @@ export function groupMetricSeries(series: MetricSeries[]): MetricSeriesGroup[] {
       series: [item],
     });
   }
-  return [...groups.values()];
+  const values = [...groups.values()];
+  // Metrics that share a unit but differ in format (for example a reserve and its
+  // per-turn rate) would otherwise get identical chart titles.
+  const titleCounts = new Map<string, number>();
+  for (const group of values) {
+    titleCounts.set(group.title, (titleCounts.get(group.title) ?? 0) + 1);
+  }
+  for (const group of values) {
+    const metric = group.series[0]!.metric;
+    const rate = metric.format.suffix?.trim().match(/\/([a-z][a-z ]*)$/i);
+    if ((titleCounts.get(group.title) ?? 0) > 1 && rate) {
+      group.title = `${titleCase(metric.unit)} per ${rate[1]} trends`;
+    }
+  }
+  return values;
 }
 
 export function MetricCharts({ series }: { series: MetricSeries[] }) {
   const groups = groupMetricSeries(series);
+  const hasFinancialMetrics = series.some((item) => item.metric.unit === "cents");
   return (
     <section aria-labelledby="charts-heading" className="space-y-5">
       <div>
         <p className="text-sm font-semibold text-accent">Simulation trends</p>
         <h2 className="mt-1 text-2xl font-bold text-primary" id="charts-heading">
-          Financial and resource visualizations
+          {hasFinancialMetrics ? "Financial and resource visualizations" : "Resource and status visualizations"}
         </h2>
         <p className="mt-2 text-sm leading-6 text-secondary">
           Charts use the initial state and recorded values after completed turns. No

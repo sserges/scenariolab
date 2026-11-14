@@ -523,7 +523,7 @@ Live generation makes no automatic retry. It uses the existing provider timeout/
 
 ### Frontend routes and mode behavior
 
-- Startup Survival presents Classic Simulation and AI Scenario Director. Classic remains the default choice for a new run. Cybersecurity Crisis and Space Colony remain Coming Soon.
+- Startup Survival presents Classic Simulation and AI Scenario Director. Classic remains the default choice for a new run. Cybersecurity Crisis and Space Colony (Brick 9C) are Classic-only; their mode screen states that the Director is not available for them, and the backend rejects their Director requests with `unsupported_director_scenario`.
 - Director availability is checked through the existing `POST /api/ai/director/proposal` contract after authoritative start/reconstruction. The frontend does not bypass `director_enabled`. A structured disabled/signing error offers Classic Simulation.
 - Director turns use `POST /api/ai/director/turn` with the complete signed proposal, completed signed prefix, and selected choice ID. The browser renders the returned state, `TurnResult`, and receipt only after backend verification.
 - Director history joins signed proposal situations and selected choices with `GameState.decision_history` metric changes, event IDs, status, and outcome. Existing metric charts and terminal report are reused. Director does not request AI briefings.

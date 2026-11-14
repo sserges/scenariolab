@@ -3,7 +3,10 @@ import asyncio
 import httpx
 import pytest
 
+from scenariolab_api.domain.enums import AvailabilityStatus
 from scenariolab_api.main import app
+from scenariolab_api.routes import games as games_route
+from scenariolab_api.scenarios import get_catalog_entry
 from scenariolab_api.scenarios.startup_survival import STARTUP_SURVIVAL
 from scenariolab_api.schemas import GameStartResponse, GameTurnResponse
 
@@ -132,10 +135,16 @@ def test_three_turn_progression_returns_expected_metrics_and_event() -> None:
     assert results[2].state.metric_values["monthly-revenue"] == 1_250_000
 
 
-def test_unknown_and_planned_scenarios_are_rejected() -> None:
+def test_unknown_and_planned_scenarios_are_rejected(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     unknown = asyncio.run(
         post("/api/games/start", {"scenario_id": "not-registered", "seed": 1})
     )
+    entry = get_catalog_entry("space-colony")
+    assert entry is not None
+    planned_entry = entry.model_copy(update={"availability": AvailabilityStatus.PLANNED})
+    monkeypatch.setattr(games_route, "get_catalog_entry", lambda _scenario_id: planned_entry)
     planned = asyncio.run(
         post("/api/games/start", {"scenario_id": "space-colony", "seed": 1})
     )

@@ -7,6 +7,7 @@ export type ScenarioAvailability = "available" | "planned";
 export type GameStatus = "not-started" | "active" | "won" | "lost";
 export type FavorableDirection = "higher" | "lower" | "neutral";
 export type DisplayStyle = "currency" | "number" | "percentage" | "score";
+export type ScenarioAIFeature = "scenario-director" | "live-briefings";
 
 export interface ScenarioCatalogEntry {
   scenario_id: string;
@@ -16,6 +17,12 @@ export interface ScenarioCatalogEntry {
   objective: string;
   availability: ScenarioAvailability;
   planned_key_metrics: string[];
+  /** Optional AI capabilities the backend catalog explicitly opts this scenario into. */
+  ai_features?: string[];
+}
+
+export function hasAIFeature(entry: ScenarioCatalogEntry, feature: ScenarioAIFeature): boolean {
+  return entry.ai_features?.includes(feature) ?? false;
 }
 
 export interface MetricFormat {
@@ -517,7 +524,8 @@ function isScenarioCatalogEntry(value: unknown): value is ScenarioCatalogEntry {
     typeof value.category === "string" &&
     typeof value.objective === "string" &&
     (value.availability === "available" || value.availability === "planned") &&
-    isStringArray(value.planned_key_metrics)
+    isStringArray(value.planned_key_metrics) &&
+    (value.ai_features === undefined || isStringArray(value.ai_features))
   );
 }
 

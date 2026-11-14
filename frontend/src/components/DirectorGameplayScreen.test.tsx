@@ -33,6 +33,7 @@ const startupEntry = {
   objective: "Keep a startup alive for 12 simulated months.",
   availability: "available" as const,
   planned_key_metrics: ["Cash", "Monthly Revenue"],
+  ai_features: ["scenario-director", "live-briefings"],
 };
 
 function renderGameplay(resumeSave: SavedDirectorRun | null = null, existingSave: SavedDirectorRun | null = null, onSaveStateChange = vi.fn()) {

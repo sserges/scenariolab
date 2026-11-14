@@ -1,7 +1,13 @@
 from types import MappingProxyType
 
-from scenariolab_api.domain.enums import AvailabilityStatus, ScenarioCategory
+from scenariolab_api.domain.enums import (
+    AvailabilityStatus,
+    ScenarioAIFeature,
+    ScenarioCategory,
+)
 from scenariolab_api.domain.models import ScenarioCatalogEntry, ScenarioDefinition
+from scenariolab_api.scenarios.cybersecurity_crisis import CYBERSECURITY_CRISIS
+from scenariolab_api.scenarios.space_colony import SPACE_COLONY
 from scenariolab_api.scenarios.startup_survival import STARTUP_SURVIVAL
 
 PREDEFINED_SCENARIO_CATALOG = (
@@ -24,44 +30,51 @@ PREDEFINED_SCENARIO_CATALOG = (
             "Customer Satisfaction",
             "Team Morale",
         ),
+        ai_features=(
+            ScenarioAIFeature.SCENARIO_DIRECTOR,
+            ScenarioAIFeature.LIVE_BRIEFINGS,
+        ),
     ),
     ScenarioCatalogEntry(
         scenario_id="cybersecurity-crisis",
         title="Cybersecurity Crisis",
         description=(
-            "Coordinate a company response to an evolving security incident while "
-            "balancing containment, continuity, and trust."
+            "Lead an incident-response team through twelve rounds of an escalating "
+            "attack while balancing containment, continuity, and trust."
         ),
         category=ScenarioCategory.CYBERSECURITY,
-        objective="Respond to a company security incident and limit its impact.",
-        availability=AvailabilityStatus.PLANNED,
+        objective=(
+            "Contain the attack within 12 rounds while keeping the organization "
+            "operating."
+        ),
+        availability=AvailabilityStatus.AVAILABLE,
         planned_key_metrics=(
-            "Incident Severity",
-            "Systems Online",
-            "Data Integrity",
-            "Business Continuity",
+            "System Integrity",
+            "Threat Level",
+            "Attacker Momentum",
+            "Operational Continuity",
             "Stakeholder Trust",
+            "Response Resources",
         ),
     ),
     ScenarioCatalogEntry(
         scenario_id="space-colony",
         title="Space Colony",
         description=(
-            "Keep a Mars settlement of 50 astronauts operating through shortages, "
-            "equipment failures, and unexpected discoveries."
+            "Keep a Mars settlement of 50 astronauts alive through twelve mission "
+            "cycles of shortages, equipment failures, and discoveries."
         ),
         category=ScenarioCategory.SPACE,
-        objective="Keep a 50-astronaut Mars colony operational.",
-        availability=AvailabilityStatus.PLANNED,
+        objective=(
+            "Sustain a 50-astronaut Mars colony for 12 mission cycles."
+        ),
+        availability=AvailabilityStatus.AVAILABLE,
         planned_key_metrics=(
-            "Population",
             "Oxygen",
-            "Water",
             "Food",
-            "Power",
-            "Habitat Integrity",
-            "Crew Health",
-            "Morale",
+            "Energy",
+            "Crew Morale",
+            "Colony Integrity",
         ),
     ),
 )
@@ -70,7 +83,10 @@ _CATALOG_BY_ID = MappingProxyType(
     {entry.scenario_id: entry for entry in PREDEFINED_SCENARIO_CATALOG}
 )
 _AVAILABLE_DEFINITIONS = MappingProxyType(
-    {STARTUP_SURVIVAL.scenario_id: STARTUP_SURVIVAL}
+    {
+        definition.scenario_id: definition
+        for definition in (STARTUP_SURVIVAL, CYBERSECURITY_CRISIS, SPACE_COLONY)
+    }
 )
 
 

@@ -7,6 +7,7 @@ import {
   type ScenarioDefinition,
 } from "../lib/api";
 import { isSavedDirectorRun } from "../lib/savedRun";
+import { describeTurnLength } from "../lib/turns";
 import type { SaveReadResult, SavedRun } from "../lib/savedRun";
 
 type CatalogState =
@@ -130,8 +131,7 @@ function ScenarioCard({
             <div className="mt-5 border-t border-line pt-5 text-sm text-secondary">
               <p className="font-semibold text-accent">Definition validated</p>
               <p className="mt-2">
-                {detailState.definition.turn.max_turns} {detailState.definition.turn.unit}
-                -long turns · {detailState.definition.metrics.length} tracked metrics
+                {describeTurnLength(detailState.definition.turn)} · {detailState.definition.metrics.length} tracked metrics
               </p>
               <p className="mt-2 text-xs text-secondary">
                 Ready for deterministic browser play.

@@ -60,7 +60,12 @@ class BriefingService:
         context: BriefingContext,
         *,
         caller_key: str = "unknown",
+        allow_live: bool = True,
     ) -> BriefingResponse:
+        if not allow_live:
+            # Scenarios without a live-briefing opt-in never reach the provider
+            # or the live cache; they always receive the authored fallback.
+            return _fallback_briefing(context)
         cache_key = sha256(context.model_dump_json().encode("utf-8")).hexdigest()
         cached = self._get_cached(cache_key)
         if cached is not None:

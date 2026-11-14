@@ -10,21 +10,23 @@ The first playable definition is **Startup Survival**: manage a startup over 12 
 
 **Brick 7: gameplay dashboard and persistence** is complete. The gameplay screen includes metadata-driven KPI cards and accessible trend charts, an authoritative decision timeline, versioned local save/resume through deterministic backend replay, and an engine-grounded terminal report. AI briefings remain explanatory and are mocked in automated tests. No additional scenarios, event generation, or document imports were added.
 
-**Brick 8A: deployment and security readiness** is prepared locally: safe production configuration, request and provider concurrency bounds, container and static-host guidance, and submission documentation are in place. The application has not been deployed. Shared edge rate limiting and origin protection remain required before enabling billable AI on a public endpoint.
+**Brick 8A: deployment and security readiness** is prepared locally: safe production configuration, request and provider concurrency bounds, container and static-host guidance, and submission documentation are in place. The Render backend service has been created, but its first startup failed during runtime settings loading and it has not passed health checks. The initial Pages frontend deployment is tracked under Brick 8B. Shared edge rate limiting and origin protection remain required before enabling billable AI on a public endpoint.
 
-**Brick 8B: public release candidate preparation** is in progress. The intended production configuration enables signed Director gameplay with authored fallback situations while keeping `SCENARIOLAB_AI_ENABLED=false` and `SCENARIOLAB_DIRECTOR_LIVE_GENERATION_ENABLED=false`; no provider key is needed or authorized. See [docs/deployment.md](docs/deployment.md) for Render and Cloudflare Pages settings, stable signing key handling, the release smoke plan, and rollback steps. Public deployment remains unchecked, and local Docker image verification is pending because the Docker engine is unavailable.
+**Brick 8B: public release candidate preparation** is complete at release commit `d47c68c`. Cloudflare Pages created the `scenariolab` project and reported its first deployment successful at [`https://scenariolab-38a.pages.dev`](https://scenariolab-38a.pages.dev). The Render Free service [`https://scenariolab.onrender.com`](https://scenariolab.onrender.com) was created from `d47c68c`; its remote Docker image built successfully, but the first startup failed during runtime settings loading and `/api/health` did not pass. Pages is not connected to a healthy API and public browser smoke tests remain pending. The workspace overage protection was confirmed by the user; the Render service remains on the `$0/month` Free plan. The fallback configuration keeps `SCENARIOLAB_AI_ENABLED=false` and `SCENARIOLAB_DIRECTOR_LIVE_GENERATION_ENABLED=false`; no provider key is configured and no provider requests were made. See [docs/deployment.md](docs/deployment.md) for the verified checkpoint, startup recovery, stable signing key handling, smoke plan, and rollback steps. Brick 8B public deployment remains unchecked; local Docker image verification is pending because the Docker engine is unavailable.
 
 **Brick 9B-2A and Brick 9B-2B: Director gameplay and mocked live-generation integration** are implemented and verified. One separately authorized live smoke request returned HTTP 200, but the generated candidate was rejected and authored fallback was returned; live generation remains unverified. Startup Survival offers Classic Simulation and an optional AI Scenario Director mode. Director stays disabled unless `SCENARIOLAB_DIRECTOR_ENABLED=true` and signing keys are configured. Live proposal generation also requires `SCENARIOLAB_DIRECTOR_LIVE_GENERATION_ENABLED=true` and `SCENARIOLAB_AI_ENABLED=true`; both live flags default to false. Valid AI candidates are signed only after strict profile validation and deterministic engine previews. Provider failure or invalid output selects deterministic authored fallback. Version-2 saves preserve the signed pending proposal and completed records; version-1 Classic saves remain unchanged. Public billable generation remains blocked on shared rate limits, origin-bypass protection, and provider spending controls.
+
+**Brick 9C: multi-scenario expansion** is implemented and locally verified. Cybersecurity Crisis (12 rounds) and Space Colony (12 mission cycles) are now playable as validated `ScenarioDefinition` data on the unchanged engine. Startup Survival keeps both of its modes. The catalog's `ai_features` field scopes the AI Scenario Director and live briefings to Startup Survival. The new scenarios use deterministic Classic Simulation with authored briefings, and they never call an AI provider. Local verification: 154 Pytest, 80 Vitest, 27 Playwright Chromium tests, and the production build. This change has not been deployed. See [docs/scenarios.md](docs/scenarios.md).
 
 ## Official predefined scenarios
 
 | Scenario | Objective | Status |
 | --- | --- | --- |
-| Startup Survival | Keep a startup alive for 12 simulated months | Playable in the browser |
-| Cybersecurity Crisis | Respond to a company security incident | Planned |
-| Space Colony | Keep a Mars colony of 50 astronauts operational | Planned |
+| Startup Survival | Keep a startup alive for 12 simulated months | Playable: Classic and optional AI Scenario Director |
+| Cybersecurity Crisis | Contain an escalating attack within 12 rounds while keeping operations running | Playable: Classic Simulation |
+| Space Colony | Sustain a 50-astronaut Mars colony for 12 mission cycles | Playable: Classic Simulation |
 
-Catalog metadata makes all three concepts discoverable. Only an `available` entry may be resolved to a full `ScenarioDefinition`; the API returns HTTP 409 for planned entries rather than presenting incomplete content as playable.
+Only an `available` entry may be resolved to a full `ScenarioDefinition`. The API still returns HTTP 409 for any entry marked `planned`. Mechanics, metrics, decisions, events, victory and failure conditions, and balance evidence are in [docs/scenarios.md](docs/scenarios.md).
 
 ## MVP
 
@@ -62,7 +64,7 @@ See [docs/architecture.md](docs/architecture.md) for the contract and trust boun
 4. Reload the browser and choose **Continue Saved Game** to demonstrate replay-based resume. Classic saves replay ordered action IDs; Director saves replay signed records.
 5. Continue until the engine ends the run, review the terminal report, then restart after confirming replacement of saved progress.
 
-The demo works with all live AI disabled: Classic gameplay and briefings use deterministic behavior, and Director gameplay uses authored fallback situations when its independent mode flag and signing key are configured. Cybersecurity Crisis and Space Colony are Coming Soon and are not playable.
+The demo works with all live AI disabled: Classic gameplay and briefings use deterministic behavior, and Director gameplay uses authored fallback situations when its independent mode flag and signing key are configured. Cybersecurity Crisis and Space Colony are fully playable in Classic Simulation with authored content and never call an AI provider.
 
 ## AI implementation and assisted-development disclosure
 
@@ -76,11 +78,13 @@ ScenarioLab has no accounts, authentication, analytics SDK, or user profile fiel
 
 ## Known limitations
 
-- Only Startup Survival is playable. Cybersecurity Crisis and Space Colony remain planned.
+- AI Scenario Director and live briefings are limited to Startup Survival. Cybersecurity Crisis and Space Colony use authored, deterministic content only.
+- One local save slot is shared by all scenarios. Starting a new run in any scenario replaces it after confirmation.
+- Startup Survival (unchanged in Brick 9C) can reach a non-terminal turn with no affordable decision when cash runs very low. About 42% of uniformly random runs hit this. The two new scenarios are tested to never reach such a state.
 - Saves are local to one browser profile; there is no account, server persistence, or cross-device sync.
 - Public API authentication and shared distributed rate limiting are not implemented.
 - Production live AI must remain disabled until the API origin is protected by effective shared edge limits, provider project budgets, and an operator-reviewed monitoring plan.
-- No public deployment or Devpost submission has been performed.
+- No healthy backend or API-integrated public release has passed smoke tests; no Devpost submission has been performed.
 
 ## Intended stack
 
@@ -238,7 +242,7 @@ The browser requests at most one briefing after each accepted turn in a single 1
 
 ## Deployment readiness
 
-See [docs/deployment.md](docs/deployment.md) for exact Render and Cloudflare Pages settings, the fallback-only production variables, stable signing key handling, HTTPS/CORS, health checks, release smoke plan, and rollback steps. No infrastructure has been created or deployed.
+See [docs/deployment.md](docs/deployment.md) for exact Render and Cloudflare Pages settings, the verified Pages checkpoint, fallback-only production variables, stable signing key handling, HTTPS/CORS, health checks, release smoke plan, and rollback steps. Pages is deployed and its initial build reported successful; the Render Free service's remote image build succeeded, but its first startup and health check failed. The API-integrated public release remains unverified.
 
 ## Run tests and builds
 
@@ -445,7 +449,7 @@ Important codes include `invalid_request`, `scenario_not_found`, `scenario_not_a
 
 ## Frontend gameplay flow
 
-The scenario library continues to show all three predefined cards and the planned custom-scenario feature. Startup Survival can open a responsive gameplay screen; the other predefined scenarios remain disabled as **Coming Soon**.
+The scenario library shows all three predefined scenarios as playable, along with the planned custom-scenario feature. Each scenario uses its own turn vocabulary (Month, Round, or Cycle), metric labels and formats, decisions, events, and outcome titles. All of these come from its definition. Startup Survival offers Classic Simulation and AI Scenario Director. For Cybersecurity Crisis and Space Colony, the mode screen marks the Director as **Not available for this scenario**. Their briefings are labeled **Strategic briefing** / **Authored briefing**, never as AI.
 
 The player starts a run, reviews definition-driven metrics and available decisions, selects and confirms one action, then sees the exact state, deltas, event, status, and outcome returned by FastAPI. Currency formatting converts integer cents only for presentation. Delta color uses each metric's `favorable_direction`; an increase is not assumed to be beneficial. While a request is pending, duplicate submission is blocked. Failed requests preserve the prior accepted state and expose a retry action. Terminal games disable decisions and offer a fresh restart through `/api/games/start`.
 

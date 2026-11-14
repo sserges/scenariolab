@@ -3,7 +3,9 @@ from fastapi import APIRouter, HTTPException, Request, status
 from scenariolab_api.ai.grounding import build_briefing_context
 from scenariolab_api.ai.models import BriefingResponse
 from scenariolab_api.ai.service import BriefingService
+from scenariolab_api.domain.enums import ScenarioAIFeature
 from scenariolab_api.routes.games import _get_playable_definition, replay_history
+from scenariolab_api.scenarios import get_catalog_entry
 from scenariolab_api.schemas import AIBriefingRequest, ErrorResponse
 
 router = APIRouter(prefix="/api/ai", tags=["ai"])
@@ -75,7 +77,13 @@ def create_briefing(
 
     service: BriefingService = http_request.app.state.briefing_service
     caller_key = http_request.client.host if http_request.client is not None else "unknown"
+    catalog_entry = get_catalog_entry(definition.scenario_id)
+    allow_live = (
+        catalog_entry is not None
+        and ScenarioAIFeature.LIVE_BRIEFINGS in catalog_entry.ai_features
+    )
     return service.generate(
         build_briefing_context(definition, latest_result),
         caller_key=caller_key,
+        allow_live=allow_live,
     )

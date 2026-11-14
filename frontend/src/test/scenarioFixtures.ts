@@ -34,26 +34,34 @@ export const scenarioCatalogFixture: ScenarioCatalogEntry[] = [
     objective: "Keep a startup alive for 12 simulated months.",
     availability: "available",
     planned_key_metrics: ["Cash", "Monthly Revenue"],
+    ai_features: ["scenario-director", "live-briefings"],
   },
   {
     scenario_id: "cybersecurity-crisis",
     title: "Cybersecurity Crisis",
-    description: "Coordinate a response to an evolving security incident.",
+    description: "Lead an incident-response team through an escalating attack.",
     category: "cybersecurity",
-    objective: "Respond to a company security incident.",
-    availability: "planned",
-    planned_key_metrics: ["Incident Severity", "Systems Online"],
+    objective: "Contain the attack within 12 rounds while keeping the organization operating.",
+    availability: "available",
+    planned_key_metrics: ["System Integrity", "Threat Level"],
+    ai_features: [],
   },
   {
     scenario_id: "space-colony",
     title: "Space Colony",
-    description: "Keep a Mars settlement of 50 astronauts operational.",
+    description: "Keep a Mars settlement of 50 astronauts alive.",
     category: "space",
-    objective: "Keep a 50-astronaut Mars colony operational.",
-    availability: "planned",
-    planned_key_metrics: ["Population", "Oxygen", "Water"],
+    objective: "Sustain a 50-astronaut Mars colony for 12 mission cycles.",
+    availability: "available",
+    planned_key_metrics: ["Oxygen", "Food", "Energy"],
+    ai_features: [],
   },
 ];
+
+/** A catalog where only Startup Survival is playable, for planned-state UI coverage. */
+export const plannedCatalogFixture: ScenarioCatalogEntry[] = scenarioCatalogFixture.map((entry) =>
+  entry.scenario_id === "startup-survival" ? entry : { ...entry, availability: "planned" },
+);
 
 const moneyFormat = {
   style: "currency" as const,

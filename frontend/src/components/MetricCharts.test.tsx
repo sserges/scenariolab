@@ -44,3 +44,17 @@ test("renders a safe placeholder when metric history is missing", () => {
   render(<MetricCharts series={[]} />);
   expect(screen.getByText(/Chart history is unavailable/)).toBeInTheDocument();
 });
+
+test("distinguishes same-unit reserve and rate groups without financial wording", async () => {
+  const { spaceDefinitionFixture, spaceStartFixture } = await import("../test/multiScenarioFixtures");
+  const series = buildMetricSeries(spaceDefinitionFixture.metrics, spaceStartFixture.state.metric_values, []);
+
+  expect(groupMetricSeries(series).map((group) => group.title)).toEqual([
+    "Days trends",
+    "Days per cycle trends",
+    "Points trends",
+  ]);
+  render(<MetricCharts series={series} />);
+  expect(screen.getByRole("heading", { name: "Resource and status visualizations" })).toBeInTheDocument();
+  expect(screen.queryByText(/Financial/)).not.toBeInTheDocument();
+});

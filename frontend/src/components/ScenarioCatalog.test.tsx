@@ -2,6 +2,7 @@ import { fireEvent, render, screen, waitFor, within } from "@testing-library/rea
 import { expect, test, vi } from "vitest";
 
 import {
+  plannedCatalogFixture,
   scenarioCatalogFixture,
   startupDefinitionFixture,
 } from "../test/scenarioFixtures";
@@ -12,7 +13,7 @@ function jsonResponse(body: unknown): Response {
   return new Response(JSON.stringify(body), { status: 200 });
 }
 
-test("renders all three scenarios with available and planned statuses", async () => {
+test("renders all three scenarios as available and playable", async () => {
   vi.stubGlobal(
     "fetch",
     vi.fn().mockResolvedValue(jsonResponse(scenarioCatalogFixture)),
@@ -27,6 +28,20 @@ test("renders all three scenarios with available and planned statuses", async ()
     screen.getByRole("heading", { name: "Cybersecurity Crisis" }),
   ).toBeInTheDocument();
   expect(screen.getByRole("heading", { name: "Space Colony" })).toBeInTheDocument();
+  expect(screen.getAllByText("Available")).toHaveLength(3);
+  expect(screen.queryByText("Coming Soon")).not.toBeInTheDocument();
+  expect(screen.getAllByRole("button", { name: "View Details" })).toHaveLength(3);
+});
+
+test("still renders planned entries as Coming Soon when the catalog marks them planned", async () => {
+  vi.stubGlobal(
+    "fetch",
+    vi.fn().mockResolvedValue(jsonResponse(plannedCatalogFixture)),
+  );
+
+  render(<ScenarioCatalog />);
+
+  await screen.findByRole("heading", { name: "Startup Survival" });
   expect(screen.getByText("Available")).toBeInTheDocument();
   expect(screen.getAllByText("Coming Soon")).toHaveLength(4);
 });
@@ -51,7 +66,7 @@ test("shows an API failure state", async () => {
 test("planned scenarios cannot launch gameplay", async () => {
   vi.stubGlobal(
     "fetch",
-    vi.fn().mockResolvedValue(jsonResponse(scenarioCatalogFixture)),
+    vi.fn().mockResolvedValue(jsonResponse(plannedCatalogFixture)),
   );
 
   render(<ScenarioCatalog />);
@@ -75,9 +90,11 @@ test("loads the available Startup Survival definition without starting gameplay"
   );
 
   render(<ScenarioCatalog />);
-  fireEvent.click(await screen.findByRole("button", { name: /View Details/i }));
+  const startupCard = (await screen.findByRole("heading", { name: "Startup Survival" })).closest("article");
+  fireEvent.click(within(startupCard as HTMLElement).getByRole("button", { name: /View Details/i }));
 
   expect(await screen.findByText("Definition validated")).toBeInTheDocument();
+  expect(screen.getByText("12 month-long turns · 7 tracked metrics")).toBeInTheDocument();
   expect(screen.getByText("Ready for deterministic browser play.")).toBeInTheDocument();
 });
 

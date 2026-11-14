@@ -10,7 +10,6 @@ import {
   type GameStartResponse,
   type GameState,
   type GameTurnResponse,
-  type MetricChange,
   type MetricDefinition,
   type ScenarioAction,
   type ScenarioCatalogEntry,
@@ -28,6 +27,7 @@ import { turnLabel } from "../lib/turns";
 import { DecisionHistory } from "./DecisionHistory";
 import { EndGameReport } from "./EndGameReport";
 import { MetricCharts } from "./MetricCharts";
+import { MetricRail } from "./MetricRail";
 
 interface GameSession {
   scenario: ScenarioDisplayMetadata;
@@ -322,9 +322,9 @@ export function ClassicGameplayScreen({
   const liveBriefings = hasAIFeature(catalogEntry, "live-briefings");
 
   return (
-    <section aria-labelledby="gameplay-title" className="pb-12">
+    <section aria-labelledby="gameplay-title" className="pb-12" data-scenario-category={catalogEntry.category}>
       <button
-        className="mb-7 inline-flex min-h-11 items-center gap-2 rounded-lg text-sm font-semibold text-secondary transition-colors hover:text-primary focus-visible:outline-offset-4"
+        className="mb-4 inline-flex min-h-11 items-center gap-2 rounded-lg text-sm font-semibold text-secondary transition-colors hover:text-primary focus-visible:outline-offset-4"
         onClick={onBack}
         type="button"
       >
@@ -333,7 +333,7 @@ export function ClassicGameplayScreen({
 
       {session === null && resumeSave === null && onSwitchMode !== undefined && (
         <button
-          className="mb-5 ml-4 min-h-11 rounded-lg border border-line px-4 text-sm font-semibold text-secondary transition-colors hover:bg-tint hover:text-primary focus-visible:outline-offset-4"
+          className="mb-4 ml-4 min-h-11 rounded-lg border border-line px-4 text-sm font-semibold text-secondary transition-colors hover:bg-tint hover:text-primary focus-visible:outline-offset-4"
           onClick={onSwitchMode}
           type="button"
         >
@@ -341,19 +341,21 @@ export function ClassicGameplayScreen({
         </button>
       )}
 
-      <header className="rounded-3xl border border-accent/20 bg-surface p-6 shadow-2xl shadow-black/20 sm:p-9">
-        <p className="text-xs font-bold uppercase tracking-[0.2em] text-accent">Playable simulation</p>
-        <h1 className="mt-4 text-4xl font-black tracking-tight text-primary sm:text-5xl" id="gameplay-title">
-          {scenarioTitle}
-        </h1>
-        <p className="mt-4 max-w-3xl text-base leading-7 text-secondary sm:text-lg sm:leading-8">{objective}</p>
+      <header className="flex flex-wrap items-end justify-between gap-4 rounded-2xl border border-line bg-surface p-5 sm:p-6">
+        <div className="min-w-0">
+          <p className="text-xs font-bold uppercase tracking-[0.16em] text-accent">{humanize(catalogEntry.category)} scenario</p>
+          <h1 className="mt-1.5 text-3xl font-black tracking-tight text-primary sm:text-4xl" id="gameplay-title">
+            {scenarioTitle}
+          </h1>
+          <p className="mt-1.5 max-w-3xl text-sm leading-6 text-secondary sm:text-base">{objective}</p>
+        </div>
         {session !== null && (
-          <dl className="mt-6 flex flex-wrap gap-3 text-xs font-semibold text-secondary">
-          <div className="rounded-full border border-line bg-tint px-3 py-2">Classic Simulation</div>
-            <div className="rounded-full border border-line bg-tint px-3 py-2">
+          <dl className="flex flex-wrap gap-2 text-xs font-semibold text-secondary">
+            <div className="rounded-full border border-line bg-tint px-3 py-1.5">Classic Simulation</div>
+            <div className="rounded-full border border-line bg-tint px-3 py-1.5">
               <dt className="sr-only">Replay seed</dt><dd>Seed {session.seed}</dd>
             </div>
-            <div className="rounded-full border border-line bg-tint px-3 py-2">
+            <div className="rounded-full border border-line bg-tint px-3 py-1.5">
               <dt className="sr-only">Scenario version</dt><dd>Version {session.scenarioVersion}</dd>
             </div>
           </dl>
@@ -458,6 +460,8 @@ interface GameBoardProps {
   onRestart: () => void;
 }
 
+type BoardView = "decide" | "trends";
+
 function GameBoard({
   session,
   definition,
@@ -472,6 +476,7 @@ function GameBoard({
   onSubmit,
   onRestart,
 }: GameBoardProps) {
+  const [view, setView] = useState<BoardView>("decide");
   const terminal = isTerminal(session.state);
   const latestChanges = new Map(
     session.lastResult?.metric_changes.map((change) => [change.metric_id, change]),
@@ -482,211 +487,291 @@ function GameBoard({
     session.state.decision_history,
   );
   const completedTurns = session.state.decision_history.length;
+  const unit = session.scenario.turn.unit;
+  const unitPlural = unit === "month" ? "turns" : `${unit}s`;
+  const metricsById = new Map(session.scenario.metrics.map((metric) => [metric.metric_id, metric]));
+  const selectedAction = session.availableActions.find((action) => action.action_id === selectedActionId);
 
   return (
-    <div className="mt-7 space-y-8">
-      <section aria-labelledby="turn-progress-heading" className="rounded-3xl border border-line bg-surface p-5 sm:p-6">
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <p className="text-xs font-bold uppercase tracking-wider text-secondary">Simulation progress</p>
-            <h2 aria-live="polite" className="mt-1 text-xl font-bold text-primary" id="turn-progress-heading">
-              {turnLabel(session.scenario.turn.unit)} {session.state.current_turn} of {session.state.max_turns}
-            </h2>
-            <p className="mt-1 text-sm text-secondary">
-              {completedTurns} {completedTurns === 1 ? "decision" : "decisions"} completed
-            </p>
+    <div className="mt-6 flex flex-wrap items-start gap-5">
+      <aside
+        aria-label="Simulation status"
+        className="flex min-w-0 shrink grow basis-[300px] flex-col gap-4 xl:sticky xl:top-4 xl:max-h-[calc(100vh-2rem)] xl:max-w-[340px] xl:overflow-y-auto"
+      >
+        <section aria-labelledby="turn-progress-heading" className="rounded-2xl border border-line bg-surface p-4">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <p className="text-xs font-bold uppercase tracking-[0.12em] text-secondary">Simulation progress</p>
+              <h2 aria-live="polite" className="metric-number mt-1 text-xl font-bold tabular-nums text-primary" id="turn-progress-heading">
+                {turnLabel(unit)} {session.state.current_turn} of {session.state.max_turns}
+              </h2>
+            </div>
+            <StatusBadge status={session.state.status} />
           </div>
-          <div className="flex w-full flex-col gap-2 sm:max-w-xs">
-            <label className="text-xs font-semibold text-secondary" htmlFor="turn-progress">
-              {completedTurns} of {session.state.max_turns} turns complete
-            </label>
-            <progress
-              aria-label="Simulation progress"
-              className="h-3 w-full accent-accent"
-              id="turn-progress"
-              max={session.state.max_turns}
-              value={completedTurns}
-            />
+          <div aria-hidden="true" className="mt-3 grid gap-1" style={{ gridTemplateColumns: `repeat(${session.state.max_turns}, minmax(0, 1fr))` }}>
+            {Array.from({ length: session.state.max_turns }, (_, index) => (
+              <span
+                className={`h-2 rounded-sm ${
+                  index < completedTurns
+                    ? "bg-accent"
+                    : index === completedTurns && !terminal
+                      ? "bg-accent/20 ring-1 ring-inset ring-accent"
+                      : "bg-inset"
+                }`}
+                key={index}
+              />
+            ))}
           </div>
-          <StatusBadge status={session.state.status} />
-        </div>
-      </section>
-
-      <section aria-labelledby="metrics-heading">
-        <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
-          <div>
-            <p className="text-sm font-semibold text-accent">Authoritative state</p>
-            <h2 className="mt-1 text-2xl font-bold text-primary" id="metrics-heading">Key metrics</h2>
-          </div>
-          <span className="text-xs text-secondary">Values and changes from the Python engine</span>
-        </div>
-        <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-          {session.scenario.metrics.map((metric) => (
-            <MetricCard
-              change={latestChanges.get(metric.metric_id)}
-              key={metric.metric_id}
-              metric={metric}
-              showChange={session.lastResult !== null}
-              value={session.state.metric_values[metric.metric_id] ?? metric.initial_value}
-            />
-          ))}
-        </div>
-      </section>
-
-      <MetricCharts series={metricSeries} />
-
-      {!terminal && (
-        <section
-          aria-labelledby="decisions-heading"
-          className="rounded-3xl border border-accent/15 bg-surface p-5 sm:p-7"
-        >
-          <p className="text-sm font-semibold text-accent">Your move</p>
-          <h2 className="mt-1 text-2xl font-bold text-primary" id="decisions-heading">Available decisions</h2>
-          <fieldset className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-            <legend className="sr-only">Choose one available decision</legend>
-            {session.availableActions.map((action) => {
-              const selected = action.action_id === selectedActionId;
-              return (
-                <label
-                  className={`group min-h-32 cursor-pointer rounded-2xl border p-5 transition-colors focus-within:ring-2 focus-within:ring-focus focus-within:ring-offset-2 focus-within:ring-offset-canvas ${selected ? "border-accent bg-accent/10" : "border-line bg-inset hover:border-line"}`}
-                  key={action.action_id}
-                >
-                  <input
-                    checked={selected}
-                    className="sr-only"
-                    disabled={isPending}
-                    name="decision"
-                    onChange={() => onSelectAction(action.action_id)}
-                    type="radio"
-                    value={action.action_id}
-                  />
-                  <span className="flex items-center gap-3 font-bold text-primary">
-                    <span aria-hidden="true" className={`grid h-5 w-5 shrink-0 place-items-center rounded-full border ${selected ? "border-accent bg-accent text-on-accent" : "border-muted text-transparent"}`}>✓</span>
-                    {action.title}
-                  </span>
-                  <span className="mt-3 block text-sm leading-6 text-secondary">{action.description}</span>
-                </label>
-              );
-            })}
-          </fieldset>
-          <button
-            className="mt-5 min-h-12 rounded-xl bg-accent px-6 py-3 font-bold text-on-accent transition-colors hover:bg-accent-hover focus-visible:outline-offset-4 disabled:cursor-not-allowed disabled:opacity-50"
-            disabled={selectedActionId === null || isPending}
-            onClick={onSubmit}
-            type="button"
-          >
-            {isPending ? "Resolving Decision…" : "Confirm Decision"}
-          </button>
-          {persistenceStatus === "saved" && (
-            <span className="ml-4 text-xs text-secondary">Saved automatically on this device</span>
-          )}
+          <label className="sr-only" htmlFor="turn-progress">
+            {completedTurns} of {session.state.max_turns} {unitPlural} complete
+          </label>
+          <progress className="sr-only" id="turn-progress" max={session.state.max_turns} value={completedTurns} />
+          <p className="mt-2 text-xs text-secondary">
+            {completedTurns} {completedTurns === 1 ? "decision" : "decisions"} completed
+          </p>
         </section>
-      )}
-
-      {session.lastResult !== null && (
-        <section aria-label="Latest turn explanation" className="grid gap-5 xl:grid-cols-2">
-          <TurnSummary result={session.lastResult} turnUnit={session.scenario.turn.unit} />
-          <AIBriefingPanel
-            briefing={briefing}
-            completedTurn={session.lastResult.completed_turn_index}
-            liveBriefings={liveBriefings}
-            restored={briefing === null && briefingStatus === "idle"}
-            status={briefingStatus}
-            turnUnit={session.scenario.turn.unit}
-          />
-        </section>
-      )}
-
-      <DecisionHistory
-        briefingsByTurn={briefingsByTurn}
-        definition={definition}
-        liveBriefings={liveBriefings}
-        records={session.state.decision_history}
-        turnUnit={session.scenario.turn.unit}
-      />
-
-      {terminal && (
-        <EndGameReport
-          definition={definition}
-          initialValues={session.initialMetricValues}
-          metricSeries={metricSeries}
-          onRestart={onRestart}
-          restarting={isPending}
-          state={session.state}
+        <MetricRail
+          changes={latestChanges}
+          metrics={session.scenario.metrics}
+          series={metricSeries}
+          showChange={session.lastResult !== null}
+          turnUnit={unit}
+          values={session.state.metric_values}
         />
-      )}
+      </aside>
+
+      <div className="flex min-w-0 shrink grow-[999] basis-[520px] flex-col gap-4">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div aria-label="Simulation views" className="flex gap-1 rounded-xl bg-inset p-1" role="tablist">
+            <ViewTab active={view === "decide"} label={terminal ? "Report" : "Decide"} onSelect={() => setView("decide")} />
+            <ViewTab active={view === "trends"} label="Trends" onSelect={() => setView("trends")} />
+          </div>
+          <span className="text-xs text-secondary">Values and outcomes come from the simulation engine</span>
+        </div>
+
+        {view === "trends" ? (
+          <MetricCharts series={metricSeries} />
+        ) : (
+          <>
+            {session.lastResult !== null ? (
+              <section
+                aria-label="Latest turn explanation"
+                className="console-enter rounded-2xl border border-accent/40 bg-surface p-5"
+              >
+                <div className="grid gap-5 xl:grid-cols-2">
+                  <TurnSummary metricsById={metricsById} result={session.lastResult} turnUnit={unit} />
+                  <AIBriefingPanel
+                    briefing={briefing}
+                    completedTurn={session.lastResult.completed_turn_index}
+                    liveBriefings={liveBriefings}
+                    restored={briefing === null && briefingStatus === "idle"}
+                    status={briefingStatus}
+                    turnUnit={unit}
+                  />
+                </div>
+              </section>
+            ) : (
+              <section aria-labelledby="situation-heading" className="rounded-2xl border border-line bg-surface p-5">
+                <p className="text-xs font-bold uppercase tracking-[0.12em] text-accent">{turnLabel(unit)} 1 · Scenario briefing</p>
+                <h2 className="mt-1 text-2xl font-bold tracking-tight text-primary" id="situation-heading">Your first decision</h2>
+                <p className="mt-2 max-w-[68ch] text-sm leading-6 text-secondary">{definition.description}</p>
+              </section>
+            )}
+
+            {!terminal && (
+              <section aria-labelledby="decisions-heading" className="flex flex-col gap-3">
+                <h2 className="text-xs font-bold uppercase tracking-[0.12em] text-secondary" id="decisions-heading">
+                  Available decisions
+                </h2>
+                <fieldset className="grid gap-3 sm:grid-cols-2">
+                  <legend className="sr-only">Choose one available decision</legend>
+                  {session.availableActions.map((action) => (
+                    <DecisionCard
+                      action={action}
+                      disabled={isPending}
+                      key={action.action_id}
+                      metricsById={metricsById}
+                      onSelect={onSelectAction}
+                      selected={action.action_id === selectedActionId}
+                    />
+                  ))}
+                </fieldset>
+                <div className="sticky bottom-4 z-10 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-line bg-surface p-3 pl-4 shadow-xl shadow-black/10">
+                  <p className="min-w-0 text-sm text-secondary">
+                    {selectedAction === undefined ? "Select a decision to continue" : (
+                      <>Selected: <span className="font-semibold text-primary">{selectedAction.title}</span></>
+                    )}
+                    {persistenceStatus === "saved" && (
+                      <span className="mt-0.5 block text-xs">Saved automatically on this device</span>
+                    )}
+                  </p>
+                  <button
+                    className="min-h-11 rounded-xl bg-accent px-6 font-bold text-on-accent transition-colors hover:bg-accent-hover focus-visible:outline-offset-4 disabled:cursor-not-allowed disabled:opacity-50"
+                    disabled={selectedActionId === null || isPending}
+                    onClick={onSubmit}
+                    type="button"
+                  >
+                    {isPending ? "Resolving Decision…" : "Confirm Decision"}
+                  </button>
+                </div>
+              </section>
+            )}
+
+            {terminal && (
+              <EndGameReport
+                definition={definition}
+                initialValues={session.initialMetricValues}
+                metricSeries={metricSeries}
+                onRestart={onRestart}
+                restarting={isPending}
+                state={session.state}
+              />
+            )}
+          </>
+        )}
+      </div>
+
+      <aside
+        aria-label="Decision log"
+        className="flex min-w-0 shrink grow basis-[270px] flex-col xl:sticky xl:top-4 xl:max-h-[calc(100vh-2rem)] xl:max-w-[320px] xl:overflow-y-auto"
+      >
+        <DecisionHistory
+          briefingsByTurn={briefingsByTurn}
+          definition={definition}
+          liveBriefings={liveBriefings}
+          records={session.state.decision_history}
+          turnUnit={unit}
+        />
+      </aside>
     </div>
   );
 }
 
-function MetricCard({
-  metric,
-  value,
-  change,
-  showChange,
-}: {
-  metric: MetricDefinition;
-  value: number;
-  change: MetricChange | undefined;
-  showChange: boolean;
-}) {
-  const delta = change?.delta ?? 0;
-  const favorability = getFavorability(metric, delta);
-  const tone = favorability === "favorable"
-    ? "text-success"
-    : favorability === "unfavorable"
-      ? "text-danger"
-      : "text-secondary";
+function ViewTab({ active, label, onSelect }: { active: boolean; label: string; onSelect: () => void }) {
   return (
-    <article
-      aria-label={`${metric.title}: ${formatMetricValue(metric, value)}`}
-      className="min-w-0 rounded-2xl border border-line bg-surface p-5"
-      data-change={delta > 0 ? "positive" : delta < 0 ? "negative" : "unchanged"}
-      data-metric-id={metric.metric_id}
+    <button
+      aria-selected={active}
+      className={`min-h-9 rounded-lg px-4 text-sm font-semibold transition-colors ${active ? "bg-surface text-primary shadow-sm" : "text-secondary hover:text-primary"}`}
+      onClick={onSelect}
+      role="tab"
+      type="button"
     >
-      <p className="text-xs font-bold uppercase tracking-wider text-secondary">{metric.title}</p>
-      <p className="mt-3 break-words text-2xl font-black tracking-tight text-primary sm:text-3xl">
-        {formatMetricValue(metric, value)}
-      </p>
-      <p className={`mt-2 text-xs font-semibold ${showChange ? tone : "text-secondary"}`}>
-        {!showChange
-          ? "Initial value"
-          : delta === 0
-            ? "No change this turn"
-            : `${delta > 0 ? "Increase" : "Decrease"} ${formatMetricDelta(metric, delta)}${favorability === "favorable" ? " · favorable" : favorability === "unfavorable" ? " · unfavorable" : ""}`}
-      </p>
-      <p className="mt-3 line-clamp-2 text-xs leading-5 text-secondary">{metric.description}</p>
-    </article>
+      {label}
+    </button>
   );
 }
 
-function TurnSummary({ result, turnUnit }: { result: TurnResult; turnUnit: string }) {
+function DecisionCard({
+  action,
+  disabled,
+  metricsById,
+  onSelect,
+  selected,
+}: {
+  action: ScenarioAction;
+  disabled: boolean;
+  metricsById: Map<string, MetricDefinition>;
+  onSelect: (actionId: string) => void;
+  selected: boolean;
+}) {
+  const chips = (action.effects ?? []).flatMap((effect) => {
+    const metric = metricsById.get(effect.metric_id);
+    if (metric === undefined) return [];
+    if (effect.operator === "add" || effect.operator === "subtract") {
+      const delta = effect.operator === "add" ? effect.value : -effect.value;
+      const favorability = getFavorability(metric, delta);
+      return [{
+        key: `${effect.metric_id}-${effect.operator}`,
+        text: `${metric.title} ${formatMetricDelta(metric, delta)}`,
+        tone: favorability === "favorable" ? "text-success" : favorability === "unfavorable" ? "text-danger" : "text-secondary",
+      }];
+    }
+    return [{ key: `${effect.metric_id}-${effect.operator}`, text: effect.description, tone: "text-secondary" }];
+  });
   return (
-    <section aria-labelledby="turn-summary-heading" className="rounded-3xl border border-accent/15 bg-accent/5 p-5 sm:p-6">
-      <p className="text-sm font-semibold text-accent">Latest authoritative result</p>
-      <h2 className="mt-1 text-xl font-bold text-primary" id="turn-summary-heading">
+    <label
+      className={`group flex min-h-32 cursor-pointer flex-col gap-2.5 rounded-2xl border-[1.5px] p-4 transition-colors focus-within:ring-2 focus-within:ring-focus focus-within:ring-offset-2 focus-within:ring-offset-canvas ${selected ? "border-accent bg-accent/10" : "border-line bg-surface hover:border-accent/50"}`}
+    >
+      <input
+        checked={selected}
+        className="sr-only"
+        disabled={disabled}
+        name="decision"
+        onChange={() => onSelect(action.action_id)}
+        type="radio"
+        value={action.action_id}
+      />
+      <span className="flex items-start gap-3 font-bold leading-snug text-primary">
+        <span aria-hidden="true" className={`mt-0.5 grid h-4 w-4 shrink-0 place-items-center rounded-full border-2 ${selected ? "border-accent" : "border-muted"}`}>
+          {selected && <span className="h-1.5 w-1.5 rounded-full bg-accent" />}
+        </span>
+        {action.title}
+      </span>
+      <span className="block text-sm leading-6 text-secondary">{action.description}</span>
+      {chips.length > 0 && (
+        <span className="flex flex-wrap gap-1.5">
+          {chips.map((chip) => (
+            <span className={`metric-number rounded-md bg-inset px-2 py-0.5 text-xs font-semibold tabular-nums ${chip.tone}`} key={chip.key}>
+              {chip.text}
+            </span>
+          ))}
+        </span>
+      )}
+    </label>
+  );
+}
+
+function TurnSummary({
+  metricsById,
+  result,
+  turnUnit,
+}: {
+  metricsById: Map<string, MetricDefinition>;
+  result: TurnResult;
+  turnUnit: string;
+}) {
+  return (
+    <div>
+      <p className="text-xs font-bold uppercase tracking-[0.12em] text-accent">Latest authoritative result</p>
+      <h2 className="mt-1 text-xl font-bold tracking-tight text-primary" id="turn-summary-heading">
         {turnLabel(turnUnit)} {result.completed_turn_index} resolved
       </h2>
-      <dl className="mt-4 grid gap-4 sm:grid-cols-2">
-        <div>
-          <dt className="text-xs font-bold uppercase tracking-wider text-secondary">Selected decision</dt>
-          <dd className="mt-1 font-semibold text-primary">{result.selected_action.title}</dd>
-        </div>
-        <div>
-          <dt className="text-xs font-bold uppercase tracking-wider text-secondary">Resulting status</dt>
-          <dd className="mt-1 font-semibold text-primary">{humanize(result.resulting_status)}</dd>
-        </div>
-      </dl>
+      <p className="mt-1 text-sm text-secondary">
+        <span className="sr-only">Selected decision: </span>
+        <span className="font-semibold text-primary">{result.selected_action.title}</span>
+        <span> · {humanize(result.resulting_status)}</span>
+      </p>
       {result.triggered_event !== null ? (
-        <div className="mt-5 rounded-2xl border border-warning/20 bg-warning/5 p-4">
-          <p className="text-xs font-bold uppercase tracking-wider text-warning">Simulation event</p>
-          <h3 className="mt-1 font-bold text-primary">{result.triggered_event.title}</h3>
+        <div className="mt-3 rounded-xl bg-warning/10 p-3">
+          <p className="text-[11px] font-bold uppercase tracking-wider text-warning">Simulation event</p>
+          <h3 className="mt-0.5 font-bold text-primary">{result.triggered_event.title}</h3>
           <p className="mt-1 text-sm leading-6 text-secondary">{result.triggered_event.description}</p>
         </div>
       ) : (
-        <p className="mt-5 text-sm text-secondary">No event triggered this turn.</p>
+        <p className="mt-3 text-sm text-secondary">No event triggered this turn.</p>
       )}
-    </section>
+      {result.metric_changes.length > 0 && (
+        <ul aria-label="Metric changes this turn" className="mt-3">
+          {result.metric_changes.map((change) => {
+            const metric = metricsById.get(change.metric_id);
+            if (metric === undefined) return null;
+            const favorability = getFavorability(metric, change.delta);
+            const tone = favorability === "favorable" ? "text-success" : favorability === "unfavorable" ? "text-danger" : "text-secondary";
+            return (
+              <li className="grid grid-cols-[minmax(0,1fr)_auto] gap-x-3 border-t border-line py-1.5 text-sm" key={change.metric_id}>
+                <span className="font-semibold text-primary">{metric.title}</span>
+                <span className={`metric-number text-right font-bold tabular-nums ${change.exhausted ? "text-danger" : tone}`}>
+                  {change.exhausted ? "Exhausted" : formatMetricDelta(metric, change.delta)}
+                </span>
+                <span className="metric-number col-span-2 text-xs tabular-nums text-secondary">
+                  {`${formatMetricValue(metric, change.previous_value)} → ${formatMetricValue(metric, change.new_value)}`}
+                </span>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+    </div>
   );
 }
 

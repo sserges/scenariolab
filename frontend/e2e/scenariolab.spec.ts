@@ -70,6 +70,8 @@ test("three consecutive real turns display a deterministic triggered event", asy
   const latestTurn = page.getByRole("region", { name: "Latest turn explanation" });
   await expect(latestTurn.getByText("Simulation event")).toBeVisible();
   await expect(latestTurn.getByRole("heading", { name: "Competitor Price Cut" })).toBeVisible();
+  await page.screenshot({ path: "test-results/console-desktop-decide.png", fullPage: true });
+  await page.getByRole("tab", { name: "Trends" }).click();
   await expect(page.getByRole("heading", { name: "Financial and resource visualizations" })).toBeVisible();
   await expect(page.getByRole("img", { name: "Financial trends" })).toBeVisible();
   await expect(page.locator("[data-history-turn]")).toHaveCount(3);
@@ -217,6 +219,9 @@ test("mobile viewport keeps essential gameplay controls visible", async ({ page 
   await decision.check({ force: true });
   await expect(page.getByRole("button", { name: "Confirm Decision" })).toBeVisible();
   await expect(page.getByRole("button", { name: "Confirm Decision" })).toBeEnabled();
+  const decideViewFits = await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth);
+  expect(decideViewFits).toBe(true);
+  await page.getByRole("tab", { name: "Trends" }).click();
   await expect(page.getByRole("img", { name: "Financial trends" })).toBeVisible();
   const noHorizontalOverflow = await page.evaluate(() =>
     document.documentElement.scrollWidth <= window.innerWidth,

@@ -76,7 +76,9 @@ test.describe("Cybersecurity Crisis", () => {
     await expect(page.getByText("Round 1 of 12")).toBeVisible();
     await expect(page.getByLabel("Threat Level: 30/100")).toBeVisible();
     await expect(page.getByLabel("Response Resources: 140 hrs")).toBeVisible();
+    await page.getByRole("tab", { name: "Trends" }).click();
     await expect(page.getByRole("heading", { name: "Resource and status visualizations" })).toBeVisible();
+    await page.getByRole("tab", { name: "Decide" }).click();
 
     for (const [index, title] of CYBER_WIN_PATH.entries()) {
       await playDecision(page, exact(title));
@@ -156,7 +158,9 @@ test.describe("Space Colony", () => {
     await expect(page.getByText("Cycle 1 of 12")).toBeVisible();
     await expect(page.getByLabel("Oxygen Reserve: 30 days")).toBeVisible();
     await expect(page.getByLabel("Oxygen Balance: -2 days/cycle")).toBeVisible();
+    await page.getByRole("tab", { name: "Trends" }).click();
     await expect(page.getByRole("img", { name: "Days per cycle trends" })).toBeVisible();
+    await page.getByRole("tab", { name: "Decide" }).click();
 
     for (const [index, title] of SPACE_WIN_PATH.entries()) {
       await playDecision(page, exact(title));

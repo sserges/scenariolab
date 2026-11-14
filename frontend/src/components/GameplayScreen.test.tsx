@@ -139,8 +139,8 @@ test("submits a selected decision and renders only server-returned results and e
   expect(
     screen.getAllByText("A competitor lowers prices and pressures customer sentiment.").length,
   ).toBeGreaterThan(0);
-  expect(screen.getByText("Decrease −$22,500 · unfavorable")).toBeInTheDocument();
-  expect(screen.getByText("Decrease −$7,500 · favorable")).toBeInTheDocument();
+  expect(screen.getByLabelText("Cash: $127,500")).toHaveTextContent("Decrease −$22,500 · unfavorable");
+  expect(screen.getByLabelText("Monthly Expenses: $37,500")).toHaveTextContent("Decrease −$7,500 · favorable");
   const revenueCard = document.querySelector('[data-metric-id="monthly-revenue"]');
   expect(revenueCard).toHaveAttribute("data-change", "unchanged");
   expect(revenueCard).toHaveTextContent("No change");

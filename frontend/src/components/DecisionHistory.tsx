@@ -15,6 +15,7 @@ interface DecisionHistoryProps {
   liveBriefings?: boolean;
 }
 
+/** Compact, newest-first decision log. Every entry is an authoritative engine record. */
 export function DecisionHistory({
   records,
   turnUnit,
@@ -24,29 +25,27 @@ export function DecisionHistory({
 }: DecisionHistoryProps) {
   const metrics = new Map(definition.metrics.map((metric) => [metric.metric_id, metric]));
   const events = new Map(definition.events.map((event) => [event.event_id, event]));
+  const newestFirst = [...records].reverse();
 
   return (
-    <section aria-labelledby="history-heading" className="space-y-5">
-      <div>
-        <p className="text-sm font-semibold text-warning">Audit trail</p>
-        <h2 className="mt-1 text-2xl font-bold text-primary" id="history-heading">
+    <section aria-labelledby="history-heading" className="rounded-2xl border border-line bg-surface px-4 pb-3 pt-4">
+      <div className="flex items-baseline justify-between gap-3">
+        <h2 className="text-xs font-bold uppercase tracking-[0.12em] text-secondary" id="history-heading">
           Decision history
         </h2>
-        <p className="mt-2 text-sm leading-6 text-secondary">
-          Chronological records returned by the simulation API. Rejected decisions do not appear here.
-        </p>
+        <span className="text-[11px] text-secondary">Newest first</span>
       </div>
 
       {records.length === 0 ? (
-        <p className="rounded-2xl border border-line bg-tint p-5 text-sm text-secondary">
+        <p className="mt-3 text-sm leading-6 text-secondary">
           No decisions have been completed yet.
         </p>
       ) : (
-        <ol aria-label="Completed decisions in chronological order" className="space-y-4">
-          {records.map((record) => (
+        <ol aria-label="Completed decisions, newest first" className="mt-1">
+          {newestFirst.map((record) => (
             <DecisionHistoryEntry
               briefing={briefingsByTurn[record.turn] ?? null}
-              events={events}
+              event={record.event_id === null ? undefined : events.get(record.event_id)}
               key={`${record.sequence}-${record.action_id}`}
               liveBriefings={liveBriefings}
               metrics={metrics}
@@ -56,63 +55,71 @@ export function DecisionHistory({
           ))}
         </ol>
       )}
+      <p className="mt-2 border-t border-line pt-3 text-[11px] text-secondary">
+        Rejected decisions never appear here.
+      </p>
     </section>
   );
 }
 
 function DecisionHistoryEntry({
   briefing,
-  events,
+  event,
   liveBriefings,
   metrics,
   record,
   turnUnit,
 }: {
   briefing: AIBriefingResponse | null;
-  events: Map<string, ScenarioDefinition["events"][number]>;
+  event: ScenarioDefinition["events"][number] | undefined;
   liveBriefings: boolean;
   metrics: Map<string, MetricDefinition>;
   record: DecisionRecord;
   turnUnit: string;
 }) {
-  const event = record.event_id === null ? undefined : events.get(record.event_id);
+  const terminal = record.resulting_status === "won" || record.resulting_status === "lost";
   return (
-    <li className="relative rounded-3xl border border-line bg-surface p-5 sm:p-6" data-history-turn={record.turn}>
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <p className="text-xs font-bold uppercase tracking-wider text-accent">
-            {titleCase(turnUnit)} {record.turn}
-          </p>
-          <h3 className="mt-2 text-lg font-bold text-primary">{record.action_title}</h3>
-        </div>
-        <span className="rounded-full border border-line bg-tint px-3 py-1.5 text-xs font-semibold text-secondary">
-          {humanize(record.resulting_status)}
-        </span>
+    <li className="border-t border-line py-3 first:border-t-0" data-history-turn={record.turn}>
+      <div className="flex items-center justify-between gap-2">
+        <p className="text-[11px] font-bold uppercase tracking-wider text-accent">
+          {titleCase(turnUnit)} {record.turn}
+        </p>
+        {terminal && (
+          <span className={`text-[11px] font-bold uppercase tracking-wider ${record.resulting_status === "won" ? "text-success" : "text-danger"}`}>
+            {humanize(record.resulting_status)}
+          </span>
+        )}
       </div>
+      <h3 className="mt-1 text-sm font-semibold text-primary">{record.action_title}</h3>
 
       {event !== undefined ? (
-        <div className="mt-4 rounded-2xl border border-warning/20 bg-warning/5 p-4">
-          <p className="text-xs font-bold uppercase tracking-wider text-warning">Simulation event</p>
-          <h4 className="mt-1 font-semibold text-primary">{event.title}</h4>
-          <p className="mt-1 text-sm leading-6 text-secondary">{event.description}</p>
-        </div>
+        <p className="mt-1 text-xs font-semibold text-warning">
+          <span className="sr-only">Simulation event: </span>
+          <span aria-hidden="true">Event · </span>
+          <span>{event.title}</span>
+        </p>
       ) : record.event_id !== null ? (
-        <p className="mt-4 text-sm text-secondary">Recorded event: {humanize(record.event_id)}</p>
-      ) : (
-        <p className="mt-4 text-sm text-secondary">No event triggered.</p>
-      )}
+        <p className="mt-1 text-xs text-secondary">Recorded event: {humanize(record.event_id)}</p>
+      ) : null}
 
-      <div className="mt-4">
-        <h4 className="text-xs font-bold uppercase tracking-wider text-secondary">Metric changes</h4>
+      <details className="group mt-1.5">
+        <summary className="cursor-pointer list-none text-xs font-semibold text-secondary hover:text-primary">
+          <span aria-hidden="true" className="mr-1 inline-block transition-transform group-open:rotate-90">›</span>
+          {record.metric_changes.length} metric {record.metric_changes.length === 1 ? "change" : "changes"}
+          {briefing !== null ? " · briefing" : ""}
+        </summary>
+        {event !== undefined && (
+          <p className="mt-2 text-xs leading-5 text-secondary">{event.description}</p>
+        )}
         {record.metric_changes.length === 0 ? (
-          <p className="mt-2 text-sm text-secondary">No metric changes recorded.</p>
+          <p className="mt-2 text-xs text-secondary">No metric changes recorded.</p>
         ) : (
-          <ul className="mt-2 grid gap-2 sm:grid-cols-2">
+          <ul className="mt-2 space-y-1.5">
             {record.metric_changes.map((change) => {
               const metric = metrics.get(change.metric_id);
               if (metric === undefined) {
                 return (
-                  <li className="text-sm text-secondary" key={change.metric_id}>
+                  <li className="text-xs text-secondary" key={change.metric_id}>
                     Metric metadata unavailable for {humanize(change.metric_id)}.
                   </li>
                 );
@@ -124,9 +131,9 @@ function DecisionHistoryEntry({
                   ? "text-danger"
                   : "text-secondary";
               return (
-                <li className="rounded-xl border border-line bg-inset px-3 py-2 text-sm" key={change.metric_id}>
+                <li className="text-xs" key={change.metric_id}>
                   <span className="block font-semibold text-secondary">{metric.title}</span>
-                  <span className={`mt-1 block ${tone}`}>
+                  <span className={`metric-number block tabular-nums ${tone}`}>
                     {formatMetricValue(metric, change.previous_value)} → {formatMetricValue(metric, change.new_value)}
                     <span className="text-secondary"> ({formatMetricDelta(metric, change.delta)})</span>
                   </span>
@@ -135,24 +142,20 @@ function DecisionHistoryEntry({
             })}
           </ul>
         )}
-      </div>
-
-      <p className="mt-4 text-xs text-secondary">
-        Outcome record: {humanize(record.outcome_reason)}
-      </p>
-
-      {briefing !== null && (
-        <aside aria-label={liveBriefings ? "AI narrative for this turn" : "Briefing for this turn"} className="mt-4 rounded-2xl border border-briefing/15 bg-briefing/5 p-4">
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <p className="text-xs font-bold uppercase tracking-wider text-briefing">{liveBriefings ? "AI explanation" : "Briefing"}</p>
-            <span className="text-xs font-semibold text-secondary">
-              {!liveBriefings ? "Authored briefing" : briefing.source === "live" ? "Live AI" : "Deterministic fallback"}
-            </span>
-          </div>
-          <h4 className="mt-2 font-semibold text-primary">{briefing.headline}</h4>
-          <p className="mt-1 text-sm leading-6 text-secondary">{briefing.consequence_explanation}</p>
-        </aside>
-      )}
+        <p className="mt-2 text-[11px] text-secondary">Outcome record: {humanize(record.outcome_reason)}</p>
+        {briefing !== null && (
+          <aside aria-label={liveBriefings ? "AI narrative for this turn" : "Briefing for this turn"} className="mt-2 rounded-xl bg-briefing/5 p-3">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <p className="text-[11px] font-bold uppercase tracking-wider text-briefing">{liveBriefings ? "AI explanation" : "Briefing"}</p>
+              <span className="text-[11px] font-semibold text-secondary">
+                {!liveBriefings ? "Authored briefing" : briefing.source === "live" ? "Live AI" : "Deterministic fallback"}
+              </span>
+            </div>
+            <h4 className="mt-1 text-xs font-semibold text-primary">{briefing.headline}</h4>
+            <p className="mt-1 text-xs leading-5 text-secondary">{briefing.consequence_explanation}</p>
+          </aside>
+        )}
+      </details>
     </li>
   );
 }

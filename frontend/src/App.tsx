@@ -41,6 +41,8 @@ export function App() {
     setSaveState(readSavedRun());
   }
 
+  const shellWidth = selectedScenario === null ? "max-w-6xl" : "max-w-[1480px]";
+
   return (
     <div className="min-h-screen overflow-hidden bg-canvas text-primary">
       <div
@@ -49,7 +51,7 @@ export function App() {
       />
 
       <header className="relative border-b border-line">
-        <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-3 px-5 py-5 sm:px-8 lg:px-10">
+        <div className={`mx-auto flex ${shellWidth} flex-wrap items-center justify-between gap-3 px-5 py-5 sm:px-8 lg:px-10`}>
           <a
             aria-label="ScenarioLab home"
             className="flex items-center gap-3 font-semibold tracking-tight"
@@ -67,7 +69,7 @@ export function App() {
         </div>
       </header>
 
-      <main className="relative mx-auto max-w-6xl px-5 pb-20 pt-16 sm:px-8 sm:pt-20 lg:px-10">
+      <main className={`relative mx-auto ${shellWidth} px-5 pb-20 sm:px-8 lg:px-10 ${selectedScenario === null ? "pt-16 sm:pt-20" : "pt-6 sm:pt-8"}`}>
         {selectedScenario === null ? (
           <>
             <section className="max-w-3xl" aria-labelledby="page-title">
@@ -153,7 +155,7 @@ export function App() {
       </main>
 
       <footer className="relative border-t border-line">
-        <div className="mx-auto flex max-w-6xl flex-col gap-2 px-5 py-6 text-xs text-secondary sm:flex-row sm:items-center sm:justify-between sm:px-8 lg:px-10">
+        <div className={`mx-auto flex ${shellWidth} flex-col gap-2 px-5 py-6 text-xs text-secondary sm:flex-row sm:items-center sm:justify-between sm:px-8 lg:px-10`}>
           <span>ScenarioLab · Build Your First AI App 2026</span>
           <span>Deterministic outcomes. Validated AI.</span>
         </div>

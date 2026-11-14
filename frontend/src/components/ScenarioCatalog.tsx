@@ -3,11 +3,13 @@ import { useEffect, useState } from "react";
 import {
   getScenarioCatalog,
   getScenarioDefinition,
+  hasAIFeature,
   type ScenarioCatalogEntry,
   type ScenarioDefinition,
 } from "../lib/api";
 import { isSavedDirectorRun } from "../lib/savedRun";
 import { describeTurnLength } from "../lib/turns";
+import { ScenarioIcon } from "./ScenarioIcon";
 import type { SaveReadResult, SavedRun } from "../lib/savedRun";
 
 type CatalogState =
@@ -64,95 +66,97 @@ function ScenarioCard({
     }
   }
 
+  const directorReady = hasAIFeature(scenario, "scenario-director");
+
   return (
     <article
-      className={`relative overflow-hidden rounded-3xl border p-7 ${
-        isAvailable
-          ? "border-accent/20 bg-surface shadow-2xl shadow-black/20"
-          : "border-line bg-tint"
+      className={`group relative flex flex-col overflow-hidden rounded-2xl border p-6 transition-colors ${
+        isAvailable ? "border-line bg-surface hover:border-accent/60" : "border-dashed border-line bg-tint"
       }`}
+      data-scenario-category={scenario.category}
       data-scenario-id={scenario.scenario_id}
     >
-      <div
-        aria-hidden="true"
-        className={`absolute -right-10 -top-10 h-40 w-40 rounded-full blur-3xl ${
-          isAvailable ? "bg-accent/10" : "bg-tint"
-        }`}
-      />
-      <div className="relative flex h-full min-h-80 flex-col">
-        <div className="flex items-center justify-between gap-4">
-          <span className="text-xs font-bold uppercase tracking-wider text-secondary">
-            {scenario.category}
-          </span>
+      <div aria-hidden="true" className={`absolute inset-x-0 top-0 h-1 ${isAvailable ? "bg-accent" : "bg-line"}`} />
+      <div className="flex items-start justify-between gap-4">
+        <span className={`grid h-12 w-12 place-items-center rounded-xl ${isAvailable ? "bg-accent/10 text-accent" : "bg-inset text-secondary"}`}>
+          <ScenarioIcon category={scenario.category} />
+        </span>
+        <span className="flex flex-wrap justify-end gap-1.5">
+          {directorReady && (
+            <span className="rounded-full border border-line px-2.5 py-1 text-[11px] font-bold uppercase tracking-wider text-secondary">
+              AI Director
+            </span>
+          )}
           <span
-            className={`rounded-full px-3 py-1 text-xs font-bold ${
-              isAvailable
-                ? "bg-success/10 text-success"
-                : "bg-tint text-secondary"
+            className={`rounded-full px-2.5 py-1 text-[11px] font-bold uppercase tracking-wider ${
+              isAvailable ? "bg-success/10 text-success" : "bg-inset text-secondary"
             }`}
           >
             {isAvailable ? "Available" : "Coming Soon"}
           </span>
-        </div>
+        </span>
+      </div>
 
-        <h3 className={`mt-7 text-2xl font-bold ${isAvailable ? "text-primary" : "text-secondary"}`}>
-          {scenario.title}
-        </h3>
-        <p className="mt-3 leading-7 text-secondary">{scenario.description}</p>
-        <div className="mt-5 rounded-2xl border border-line bg-inset p-4">
-          <p className="text-xs font-bold uppercase tracking-wider text-secondary">
-            Objective
-          </p>
-          <p className="mt-2 text-sm leading-6 text-secondary">{scenario.objective}</p>
-        </div>
+      <p className="mt-5 text-xs font-bold uppercase tracking-[0.14em] text-accent">{scenario.category}</p>
+      <h3 className={`mt-1 text-2xl font-bold tracking-tight ${isAvailable ? "text-primary" : "text-secondary"}`}>
+        {scenario.title}
+      </h3>
+      <p className="mt-2 text-sm leading-6 text-secondary">{scenario.description}</p>
 
-        <div className="mt-auto pt-7">
-          {isAvailable ? (
-            <button
-              className="inline-flex items-center gap-2 rounded-xl bg-accent px-4 py-3 text-sm font-bold text-on-accent transition-colors hover:bg-accent-hover disabled:cursor-wait disabled:opacity-70"
-              disabled={detailState.status === "loading"}
-              onClick={() => void loadDetails()}
-              type="button"
-            >
-              {detailState.status === "loading" ? "Loading Details" : "View Details"}
-              <ArrowIcon />
-            </button>
-          ) : (
-            <button
-              className="cursor-not-allowed rounded-xl border border-line px-4 py-3 text-sm font-bold text-secondary"
-              disabled
-              type="button"
-            >
-              Coming Soon
-            </button>
-          )}
+      <div className="mt-4 rounded-xl bg-inset p-3.5">
+        <p className="text-[11px] font-bold uppercase tracking-wider text-secondary">Objective</p>
+        <p className="mt-1 text-sm leading-6 text-primary">{scenario.objective}</p>
+      </div>
 
-          {detailState.status === "ready" && (
-            <div className="mt-5 border-t border-line pt-5 text-sm text-secondary">
-              <p className="font-semibold text-accent">Definition validated</p>
-              <p className="mt-2">
-                {describeTurnLength(detailState.definition.turn)} · {detailState.definition.metrics.length} tracked metrics
-              </p>
-              <p className="mt-2 text-xs text-secondary">
-                Ready for deterministic browser play.
-              </p>
-              {onOpenScenario !== undefined && (
-                <button
-                  className="mt-4 rounded-xl bg-accent px-4 py-2 font-bold text-on-accent transition-colors hover:bg-accent-hover"
-                  onClick={() => onOpenScenario(scenario, detailState.definition)}
-                  type="button"
-                >
-                  Open Simulation
-                </button>
-              )}
-            </div>
-          )}
-          {detailState.status === "error" && (
-            <p className="mt-4 text-sm text-danger" role="alert">
-              Scenario details are unavailable right now.
+      <ul aria-label={`${scenario.title} key metrics`} className="mt-4 flex flex-wrap gap-1.5">
+        {scenario.planned_key_metrics.map((metric) => (
+          <li className="rounded-md border border-line px-2 py-0.5 text-xs text-secondary" key={metric}>{metric}</li>
+        ))}
+      </ul>
+
+      <div className="mt-auto pt-6">
+        {detailState.status === "ready" ? (
+          <div className="rounded-xl border border-accent/30 bg-accent/5 p-4 text-sm text-secondary">
+            <p className="font-semibold text-accent">Definition validated</p>
+            <p className="mt-1">
+              {describeTurnLength(detailState.definition.turn)} · {detailState.definition.metrics.length} tracked metrics
             </p>
-          )}
-        </div>
+            <p className="mt-1 text-xs">Ready for deterministic browser play.</p>
+            {onOpenScenario !== undefined && (
+              <button
+                className="mt-3 inline-flex min-h-11 items-center gap-2 rounded-xl bg-accent px-4 font-bold text-on-accent transition-colors hover:bg-accent-hover"
+                onClick={() => onOpenScenario(scenario, detailState.definition)}
+                type="button"
+              >
+                Open Simulation
+                <ArrowIcon />
+              </button>
+            )}
+          </div>
+        ) : isAvailable ? (
+          <button
+            className="inline-flex min-h-11 items-center gap-2 rounded-xl bg-accent px-4 text-sm font-bold text-on-accent transition-colors hover:bg-accent-hover disabled:cursor-wait disabled:opacity-70"
+            disabled={detailState.status === "loading"}
+            onClick={() => void loadDetails()}
+            type="button"
+          >
+            {detailState.status === "loading" ? "Loading Details" : "View Details"}
+            <ArrowIcon />
+          </button>
+        ) : (
+          <button
+            className="min-h-11 cursor-not-allowed rounded-xl border border-line px-4 text-sm font-bold text-secondary"
+            disabled
+            type="button"
+          >
+            Coming Soon
+          </button>
+        )}
+        {detailState.status === "error" && (
+          <p className="mt-3 text-sm text-danger" role="alert">
+            Scenario details are unavailable right now.
+          </p>
+        )}
       </div>
     </article>
   );
@@ -249,7 +253,7 @@ export function ScenarioCatalog({
           Local progress storage is unavailable. You can play, but this run will not be saved on this device.
         </p>
       )}
-      <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
+      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
         {catalogState.scenarios.map((scenario) => (
           <ScenarioCard
             key={scenario.scenario_id}
@@ -310,9 +314,13 @@ function SavedRunPanel({
   }
 
   return (
-    <section aria-labelledby="saved-run-heading" className="rounded-3xl border border-accent/20 bg-accent/5 p-5 sm:p-6">
+    <section aria-labelledby="saved-run-heading" className="rounded-2xl border border-accent/40 bg-surface p-5 sm:p-6" data-scenario-category={scenario?.category}>
       <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
-        <div>
+        <div className="flex items-start gap-4">
+          <span className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-accent/10 text-accent">
+            <ScenarioIcon category={scenario?.category ?? "custom"} />
+          </span>
+          <div>
           <p className="text-xs font-bold uppercase tracking-wider text-accent">Saved on this device</p>
           <h3 className="mt-1 text-xl font-bold text-primary" id="saved-run-heading">
             Continue {scenario?.title ?? save.scenario_id}
@@ -325,6 +333,7 @@ function SavedRunPanel({
               ? "Resume submits the signed v2 history for backend verification and replay."
               : "Resume rebuilds the run from its seed and ordered decisions through the game API."}
           </p>
+          </div>
         </div>
         <div className="flex flex-wrap gap-3">
           <button

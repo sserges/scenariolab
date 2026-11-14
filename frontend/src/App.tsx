@@ -72,26 +72,46 @@ export function App() {
       <main className={`relative mx-auto ${shellWidth} px-5 pb-20 sm:px-8 lg:px-10 ${selectedScenario === null ? "pt-16 sm:pt-20" : "pt-6 sm:pt-8"}`}>
         {selectedScenario === null ? (
           <>
-            <section className="max-w-3xl" aria-labelledby="page-title">
-              <div className="mb-5 inline-flex rounded-full border border-accent/20 bg-accent/10 px-3 py-1 text-xs font-bold uppercase tracking-[0.2em] text-accent">
-                Decision simulation platform
+            <section aria-labelledby="page-title" className="grid items-end gap-8 lg:grid-cols-[minmax(0,1fr)_400px]">
+              <div className="max-w-3xl">
+                <div className="mb-5 inline-flex rounded-full border border-accent/20 bg-accent/10 px-3 py-1 text-xs font-bold uppercase tracking-[0.2em] text-accent">
+                  Decision simulation platform
+                </div>
+                <h1
+                  className="text-balance text-5xl font-black tracking-[-0.04em] text-primary sm:text-6xl lg:text-7xl"
+                  id="page-title"
+                >
+                  ScenarioLab
+                </h1>
+                <p className="mt-5 max-w-2xl text-xl leading-relaxed text-secondary sm:text-2xl">
+                  Make decisions. Explore consequences.
+                </p>
+                <p className="mt-4 max-w-2xl leading-7 text-secondary">
+                  Step into high-stakes scenarios, balance competing priorities, and
+                  see how each choice shapes what comes next.
+                </p>
               </div>
-              <h1
-                className="text-balance text-5xl font-black tracking-[-0.04em] text-primary sm:text-6xl lg:text-7xl"
-                id="page-title"
-              >
-                ScenarioLab
-              </h1>
-              <p className="mt-5 max-w-2xl text-xl leading-relaxed text-secondary sm:text-2xl">
-                Make decisions. Explore consequences.
-              </p>
-              <p className="mt-5 max-w-2xl leading-7 text-secondary">
-                Step into high-stakes scenarios, balance competing priorities, and
-                see how each choice shapes what comes next.
-              </p>
+              <aside aria-labelledby="how-it-works-heading" className="rounded-2xl border border-line bg-surface p-5">
+                <h2 className="text-xs font-bold uppercase tracking-[0.12em] text-secondary" id="how-it-works-heading">How a run works</h2>
+                <ol className="mt-3 space-y-3">
+                  {[
+                    ["Choose a scenario", "Each has its own metrics, decisions, events, and win conditions."],
+                    ["Decide every turn", "See each decision's declared effects before you commit."],
+                    ["Watch the engine resolve it", "A deterministic Python engine applies effects and seeded events."],
+                  ].map(([title, detail], index) => (
+                    <li className="flex gap-3" key={title}>
+                      <span className="grid h-7 w-7 shrink-0 place-items-center rounded-lg bg-accent/10 text-sm font-bold text-accent">{index + 1}</span>
+                      <span>
+                        <span className="block text-sm font-semibold text-primary">{title}</span>
+                        <span className="block text-xs leading-5 text-secondary">{detail}</span>
+                      </span>
+                    </li>
+                  ))}
+                </ol>
+              </aside>
             </section>
 
-            <section className="mt-16" aria-labelledby="scenario-heading">
+            <section className="mt-14" aria-labelledby="scenario-heading">
               <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
                 <div>
                   <p className="text-sm font-semibold text-accent">Scenario library</p>
@@ -117,13 +137,13 @@ export function App() {
                 saveState={saveState}
               />
 
-              <article className="mt-5 rounded-3xl border border-dashed border-line bg-tint p-7">
+              <article className="mt-4 rounded-2xl border border-dashed border-line bg-tint p-6">
                 <div className="flex flex-col gap-6 sm:flex-row sm:items-center sm:justify-between">
                   <div>
-                    <span className="rounded-full border border-line px-3 py-1 text-xs font-bold uppercase tracking-wider text-secondary">
+                    <span className="rounded-full border border-line px-2.5 py-1 text-[11px] font-bold uppercase tracking-wider text-secondary">
                       Planned feature
                     </span>
-                    <h3 className="mt-5 text-xl font-bold text-primary">
+                    <h3 className="mt-4 text-xl font-bold text-primary">
                       Create Custom Scenario
                     </h3>
                     <p className="mt-2 max-w-2xl leading-7 text-secondary">

@@ -10,13 +10,12 @@ import {
   type DirectorReplayHistory,
   type DirectorTurnRecord,
   type GameState,
-  type MetricDefinition,
   type ScenarioCatalogEntry,
   type ScenarioDefinition,
   type ScenarioDisplayMetadata,
   type TurnResult,
 } from "../lib/api";
-import { buildMetricSeries, formatMetricDelta, formatMetricValue } from "../lib/metrics";
+import { buildMetricSeries } from "../lib/metrics";
 import {
   DIRECTOR_SAVE_FORMAT_VERSION,
   isSavedDirectorRun,
@@ -25,6 +24,7 @@ import {
 import type { SaveReadResult, SavedDirectorRun, SaveWriteResult } from "../lib/savedRun";
 import { EndGameReport } from "./EndGameReport";
 import { MetricCharts } from "./MetricCharts";
+import { MetricRail } from "./MetricRail";
 import {
   DirectorChoiceList,
   DirectorHistory,
@@ -76,6 +76,7 @@ export function DirectorGameplayScreen({
   const [failedOperation, setFailedOperation] = useState<FailedOperation>("start");
   const [persistenceStatus, setPersistenceStatus] = useState<SaveWriteResult | "idle">("idle");
   const [directorUnavailable, setDirectorUnavailable] = useState(false);
+  const [view, setView] = useState<"decide" | "trends">("decide");
   const requestInFlight = useRef(false);
   const resumeStarted = useRef(false);
   const requestGeneration = useRef(0);
@@ -337,8 +338,8 @@ export function DirectorGameplayScreen({
   const activeProposal = session?.proposal ?? null;
 
   return (
-    <section aria-labelledby="director-gameplay-title" className="pb-12">
-      <div className="mb-7 flex flex-wrap gap-3">
+    <section aria-labelledby="director-gameplay-title" className="pb-12" data-scenario-category={catalogEntry.category}>
+      <div className="mb-4 flex flex-wrap gap-3">
         <button
           className="inline-flex min-h-11 items-center gap-2 rounded-lg text-sm font-semibold text-secondary transition-colors hover:text-primary focus-visible:outline-offset-4"
           onClick={leaveToLibrary}
@@ -351,19 +352,21 @@ export function DirectorGameplayScreen({
         >Choose another mode</button>
       </div>
 
-      <header className="rounded-3xl border border-accent/20 bg-surface p-6 shadow-2xl shadow-black/20 sm:p-9">
-        <p className="text-xs font-bold uppercase tracking-[0.2em] text-accent">AI Scenario Director · live generation optional</p>
-        <h1 className="mt-4 text-4xl font-black tracking-tight text-primary sm:text-5xl" id="director-gameplay-title">{scenarioTitle}</h1>
-        <p className="mt-4 max-w-3xl text-base leading-7 text-secondary sm:text-lg sm:leading-8">{objective}</p>
-        {session !== null && <dl className="mt-6 flex flex-wrap gap-3 text-xs font-semibold text-secondary">
-          <div className="rounded-full border border-line bg-tint px-3 py-2">Seed {session.seed}</div>
-          <div className="rounded-full border border-line bg-tint px-3 py-2">Version {session.scenarioVersion}</div>
-          <div className="rounded-full border border-line bg-tint px-3 py-2">Director mode</div>
+      <header className="flex flex-wrap items-end justify-between gap-4 rounded-2xl border border-line bg-surface p-5 sm:p-6">
+        <div className="min-w-0">
+          <p className="text-xs font-bold uppercase tracking-[0.16em] text-accent">AI Scenario Director · live generation optional</p>
+          <h1 className="mt-1.5 text-3xl font-black tracking-tight text-primary sm:text-4xl" id="director-gameplay-title">{scenarioTitle}</h1>
+          <p className="mt-1.5 max-w-3xl text-sm leading-6 text-secondary sm:text-base">{objective}</p>
+        </div>
+        {session !== null && <dl className="flex flex-wrap gap-2 text-xs font-semibold text-secondary">
+          <div className="rounded-full border border-line bg-tint px-3 py-1.5">Director mode</div>
+          <div className="rounded-full border border-line bg-tint px-3 py-1.5">Seed {session.seed}</div>
+          <div className="rounded-full border border-line bg-tint px-3 py-1.5">Version {session.scenarioVersion}</div>
         </dl>}
       </header>
 
-      {persistenceStatus === "unavailable" && session !== null && <p className="mt-5 rounded-2xl border border-warning/20 bg-warning/5 p-4 text-sm leading-6 text-warning" role="status">Local storage is unavailable. This run is active, but progress could not be saved on this device.</p>}
-      {errorMessage !== null && <div className="mt-5 rounded-2xl border border-danger/20 bg-danger/5 p-5" role="alert">
+      {persistenceStatus === "unavailable" && session !== null && <p className="mt-4 rounded-2xl border border-warning/20 bg-warning/5 p-4 text-sm leading-6 text-warning" role="status">Local storage is unavailable. This run is active, but progress could not be saved on this device.</p>}
+      {errorMessage !== null && <div className="mt-4 rounded-2xl border border-danger/20 bg-danger/5 p-5" role="alert">
         <p className="font-bold text-danger">{failedOperation === "resume" ? "Saved Director game could not resume" : directorUnavailable ? "Director mode unavailable" : "Director request failed"}</p>
         <p className="mt-2 text-sm leading-6 text-secondary">{errorMessage}</p>
         <div className="mt-4 flex flex-wrap gap-3">
@@ -374,45 +377,94 @@ export function DirectorGameplayScreen({
       </div>}
 
       {session === null ? (
-        <div className="mt-7 rounded-3xl border border-line bg-tint p-7 text-center sm:p-12">
+        <div className="mt-6 rounded-2xl border border-line bg-surface p-7 text-center sm:p-12">
           {pendingOperation === "resume" ? <div aria-live="polite" className="mx-auto max-w-xl" role="status"><h2 className="text-2xl font-bold text-primary">Verifying signed Director history</h2><p className="mt-3 leading-7 text-secondary">The backend is replaying every signed turn record from the original seed. Completed turns will not request new proposals.</p></div> : (
-            <><h2 className="text-2xl font-bold text-primary">Ready for a Director run?</h2><p className="mx-auto mt-3 max-w-xl leading-7 text-secondary">The backend will validate a signed situation and authoritative previews before the run begins. If live generation is disabled or unavailable, authored fallback content keeps the run moving.</p><button className="mt-7 min-h-12 rounded-xl bg-accent px-6 py-3 font-bold text-on-accent transition-colors hover:bg-accent-hover disabled:cursor-wait disabled:opacity-60" disabled={isPending} onClick={() => void startDirectorSimulation()} type="button">{pendingOperation === "start" ? "Starting Director…" : "Start Director Simulation"}</button></>
+            <><p className="text-xs font-bold uppercase tracking-[0.16em] text-accent">New Director run</p><h2 className="mt-2 text-2xl font-bold text-primary">Ready for a Director run?</h2><p className="mx-auto mt-3 max-w-xl leading-7 text-secondary">The backend will validate a signed situation and authoritative previews before the run begins. If live generation is disabled or unavailable, authored fallback content keeps the run moving.</p><button className="mt-7 min-h-12 rounded-xl bg-accent px-6 py-3 font-bold text-on-accent transition-colors hover:bg-accent-hover disabled:cursor-wait disabled:opacity-60" disabled={isPending} onClick={() => void startDirectorSimulation()} type="button">{pendingOperation === "start" ? "Starting Director…" : "Start Director Simulation"}</button></>
           )}
         </div>
       ) : (
-        <div className="mt-7 space-y-8">
-          <section aria-labelledby="director-progress-heading" className="rounded-3xl border border-line bg-surface p-5 sm:p-6">
-            <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-              <div><p className="text-xs font-bold uppercase tracking-wider text-secondary">Director progress</p><h2 aria-live="polite" className="mt-1 text-xl font-bold text-primary" id="director-progress-heading">Turn {session.state.current_turn} of {session.state.max_turns}</h2><p className="mt-1 text-sm text-secondary">{completedTurns} {completedTurns === 1 ? "decision" : "decisions"} completed · signed replay history</p></div>
-              <div className="w-full sm:max-w-xs"><label className="text-xs font-semibold text-secondary" htmlFor="director-progress">{completedTurns} of {session.state.max_turns} turns complete</label><progress aria-label="Director simulation progress" className="mt-2 h-3 w-full accent-accent" id="director-progress" max={session.state.max_turns} value={completedTurns} /></div>
-              <span aria-label={`Game status: ${humanize(session.state.status)}`} className="w-fit rounded-full bg-accent/10 px-3 py-2 text-xs font-bold uppercase tracking-wider text-accent" role="status">{humanize(session.state.status)}</span>
-            </div>
-          </section>
-
-          <section aria-labelledby="director-metrics-heading">
-            <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between"><div><p className="text-sm font-semibold text-accent">Authoritative state</p><h2 className="mt-1 text-2xl font-bold text-primary" id="director-metrics-heading">Key metrics</h2></div><span className="text-xs text-secondary">Values and changes from the Python engine</span></div>
-            <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">{metrics.map((metric) => <MetricCard key={metric.metric_id} metric={metric} value={session.state.metric_values[metric.metric_id] ?? metric.initial_value} change={latestMetricChanges.get(metric.metric_id)} showChange={session.lastResult !== null} />)}</div>
-          </section>
-
-          <MetricCharts series={metricSeries} />
-
-          {!terminal && activeProposal !== null && <>
-            <DirectorSituationCard situation={activeProposal.proposal.payload.situation} source={activeProposal.proposal.payload.source} turn={activeProposal.proposal.payload.turn} />
-            <DirectorChoiceList choices={activeProposal.proposal.payload.choices} previews={activeProposal.previews} selectedChoiceId={session.selectedChoiceId} disabled={isPending} onSelect={(selectedChoiceId) => setSession((current) => current === null ? null : { ...current, selectedChoiceId })} metrics={session.scenario.metrics} />
-            <section className="rounded-3xl border border-line bg-surface p-5 sm:p-7">
-              <h2 className="text-xl font-bold text-primary">Confirm your choice</h2>
-              {session.selectedChoiceId === null ? <p className="mt-2 text-sm leading-6 text-secondary">Select one response to review it and submit the signed proposal.</p> : <p className="mt-2 text-sm leading-6 text-secondary"><span className="font-semibold text-primary">Selected: {activeProposal.proposal.payload.choices.find((choice) => choice.choice_id === session.selectedChoiceId)?.title ?? "Director choice"}.</span> Its preview comes from the signed proposal. The backend will verify the signature and resolve the turn before metrics or history change.</p>}
-              <button className="mt-5 min-h-12 rounded-xl bg-accent px-6 py-3 font-bold text-on-accent transition-colors hover:bg-accent-hover focus-visible:outline-offset-4 disabled:cursor-not-allowed disabled:opacity-50" disabled={session.selectedChoiceId === null || isPending} onClick={() => void submitChoice()} type="button">{pendingOperation === "turn" ? "Verifying and resolving…" : "Confirm Director Choice"}</button>
-              {persistenceStatus === "saved" && <span className="ml-4 text-xs text-secondary">Signed history saved on this device</span>}
+        <div className="mt-6 flex flex-wrap items-start gap-5">
+          <aside
+            aria-label="Simulation status"
+            className="flex min-w-0 shrink grow basis-[300px] flex-col gap-4 xl:sticky xl:top-4 xl:max-h-[calc(100vh-2rem)] xl:max-w-[340px] xl:overflow-y-auto"
+          >
+            <section aria-labelledby="director-progress-heading" className="rounded-2xl border border-line bg-surface p-4">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <p className="text-xs font-bold uppercase tracking-[0.12em] text-secondary">Director progress</p>
+                  <h2 aria-live="polite" className="metric-number mt-1 text-xl font-bold tabular-nums text-primary" id="director-progress-heading">Turn {session.state.current_turn} of {session.state.max_turns}</h2>
+                </div>
+                <span aria-label={`Game status: ${humanize(session.state.status)}`} className={`w-fit rounded-full px-3 py-1.5 text-xs font-bold uppercase tracking-wider ${session.state.status === "won" ? "bg-success/10 text-success" : session.state.status === "lost" ? "bg-danger/10 text-danger" : "bg-accent/10 text-accent"}`} role="status">{humanize(session.state.status)}</span>
+              </div>
+              <div aria-hidden="true" className="mt-3 grid gap-1" style={{ gridTemplateColumns: `repeat(${session.state.max_turns}, minmax(0, 1fr))` }}>
+                {Array.from({ length: session.state.max_turns }, (_, index) => (
+                  <span
+                    className={`h-2 rounded-sm ${index < completedTurns ? "bg-accent" : index === completedTurns && !terminal ? "bg-accent/20 ring-1 ring-inset ring-accent" : "bg-inset"}`}
+                    key={index}
+                  />
+                ))}
+              </div>
+              <label className="sr-only" htmlFor="director-progress">{completedTurns} of {session.state.max_turns} turns complete</label>
+              <progress aria-label="Director simulation progress" className="sr-only" id="director-progress" max={session.state.max_turns} value={completedTurns} />
+              <p className="mt-2 text-xs text-secondary">{completedTurns} {completedTurns === 1 ? "decision" : "decisions"} completed · signed replay history</p>
             </section>
-          </>}
+            <MetricRail
+              changes={latestMetricChanges}
+              metrics={metrics}
+              series={metricSeries}
+              showChange={session.lastResult !== null}
+              turnUnit="turn"
+              values={session.state.metric_values}
+            />
+          </aside>
 
-          {!terminal && activeProposal === null && errorMessage === null && <section aria-live="polite" className="rounded-3xl border border-line bg-tint p-7 text-center" role="status"><h2 className="text-xl font-bold text-primary">Loading a validated situation</h2><p className="mt-2 text-sm text-secondary">The backend is preparing a proposal for the current incomplete turn.</p></section>}
+          <div className="flex min-w-0 shrink grow-[999] basis-[520px] flex-col gap-4">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div aria-label="Simulation views" className="flex gap-1 rounded-xl bg-inset p-1" role="tablist">
+                {(["decide", "trends"] as const).map((tab) => (
+                  <button
+                    aria-selected={view === tab}
+                    className={`min-h-9 rounded-lg px-4 text-sm font-semibold transition-colors ${view === tab ? "bg-surface text-primary shadow-sm" : "text-secondary hover:text-primary"}`}
+                    key={tab}
+                    onClick={() => setView(tab)}
+                    role="tab"
+                    type="button"
+                  >
+                    {tab === "trends" ? "Trends" : terminal ? "Report" : "Decide"}
+                  </button>
+                ))}
+              </div>
+              <span className="text-xs text-secondary">Signed proposals · outcomes from the simulation engine</span>
+            </div>
 
-          {session.lastResult !== null && session.turnRecords.length > 0 && session.turnRecords[session.turnRecords.length - 1] !== undefined && <DirectorLatestResult record={session.turnRecords[session.turnRecords.length - 1]!} result={session.lastResult} metrics={session.scenario.metrics} />}
-          <DirectorHistory records={session.turnRecords} state={session.state} definition={scenarioDefinition} />
+            {view === "trends" ? <MetricCharts series={metricSeries} /> : <>
+              {session.lastResult !== null && session.turnRecords.length > 0 && session.turnRecords[session.turnRecords.length - 1] !== undefined && <DirectorLatestResult record={session.turnRecords[session.turnRecords.length - 1]!} result={session.lastResult} metrics={session.scenario.metrics} />}
 
-          {terminal && <EndGameReport definition={scenarioDefinition} initialValues={session.initialMetricValues} metricSeries={metricSeries} onRestart={() => void startDirectorSimulation()} restarting={isPending} state={session.state} />}
+              {!terminal && activeProposal !== null && <>
+                <DirectorSituationCard situation={activeProposal.proposal.payload.situation} source={activeProposal.proposal.payload.source} turn={activeProposal.proposal.payload.turn} />
+                <DirectorChoiceList choices={activeProposal.proposal.payload.choices} previews={activeProposal.previews} selectedChoiceId={session.selectedChoiceId} disabled={isPending} onSelect={(selectedChoiceId) => setSession((current) => current === null ? null : { ...current, selectedChoiceId })} metrics={session.scenario.metrics} />
+                <section aria-labelledby="director-confirm-heading" className="sticky bottom-4 z-10 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-line bg-surface p-3 pl-4 shadow-xl shadow-black/10">
+                  <div className="min-w-0 flex-1 basis-64">
+                    <h2 className="sr-only" id="director-confirm-heading">Confirm your choice</h2>
+                    {session.selectedChoiceId === null ? <p className="text-sm text-secondary">Select one response to review its preview and submit the signed proposal.</p> : <p className="text-sm text-secondary"><span className="font-semibold text-primary">Selected: {activeProposal.proposal.payload.choices.find((choice) => choice.choice_id === session.selectedChoiceId)?.title ?? "Director choice"}.</span> The backend verifies the signature and resolves the turn before anything changes.</p>}
+                    {persistenceStatus === "saved" && <span className="mt-0.5 block text-xs text-secondary">Signed history saved on this device</span>}
+                  </div>
+                  <button className="min-h-11 rounded-xl bg-accent px-6 font-bold text-on-accent transition-colors hover:bg-accent-hover focus-visible:outline-offset-4 disabled:cursor-not-allowed disabled:opacity-50" disabled={session.selectedChoiceId === null || isPending} onClick={() => void submitChoice()} type="button">{pendingOperation === "turn" ? "Verifying and resolving…" : "Confirm Director Choice"}</button>
+                </section>
+              </>}
+
+              {!terminal && activeProposal === null && errorMessage === null && <section aria-live="polite" className="rounded-2xl border border-line bg-surface p-7 text-center" role="status"><h2 className="text-xl font-bold text-primary">Loading a validated situation</h2><p className="mt-2 text-sm text-secondary">The backend is preparing a proposal for the current incomplete turn.</p></section>}
+
+              {terminal && <EndGameReport definition={scenarioDefinition} initialValues={session.initialMetricValues} metricSeries={metricSeries} onRestart={() => void startDirectorSimulation()} restarting={isPending} state={session.state} />}
+            </>}
+          </div>
+
+          <aside
+            aria-label="Director log"
+            className="flex min-w-0 shrink grow basis-[270px] flex-col xl:sticky xl:top-4 xl:max-h-[calc(100vh-2rem)] xl:max-w-[320px] xl:overflow-y-auto"
+          >
+            <DirectorHistory records={session.turnRecords} state={session.state} definition={scenarioDefinition} />
+          </aside>
         </div>
       )}
     </section>
@@ -604,26 +656,4 @@ function isTerminal(state: GameState): boolean {
 
 function humanize(value: string): string {
   return value.split("-").map((word) => word.charAt(0).toUpperCase() + word.slice(1)).join(" ");
-}
-
-function MetricCard({
-  metric,
-  value,
-  change,
-  showChange,
-}: {
-  metric: MetricDefinition;
-  value: number;
-  change: { delta: number } | undefined;
-  showChange: boolean;
-}) {
-  const delta = change?.delta ?? 0;
-  return (
-    <article aria-label={`${metric.title}: ${formatMetricValue(metric, value)}`} className="min-w-0 rounded-2xl border border-line bg-surface p-5" data-metric-id={metric.metric_id}>
-      <p className="text-xs font-bold uppercase tracking-wider text-secondary">{metric.title}</p>
-      <p className="mt-3 break-words text-2xl font-black tracking-tight text-primary sm:text-3xl">{formatMetricValue(metric, value)}</p>
-      <p className="mt-2 text-xs font-semibold text-secondary">{!showChange ? "Initial value" : delta === 0 ? "No change this turn" : `${formatMetricDelta(metric, delta)} this turn`}</p>
-      <p className="mt-3 line-clamp-2 text-xs leading-5 text-secondary">{metric.description}</p>
-    </article>
-  );
 }

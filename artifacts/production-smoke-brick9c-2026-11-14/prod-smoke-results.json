@@ -1,0 +1,119 @@
+{
+  "results": [
+    {
+      "name": "API health (cold start tolerated)",
+      "ok": true,
+      "detail": "HTTP 200 in 180 ms"
+    },
+    {
+      "name": "Home lists three available scenarios, none Coming Soon",
+      "ok": true,
+      "detail": "3 Available, 0 Coming Soon"
+    },
+    {
+      "name": "Frontend calls the real Render API (not localhost)",
+      "ok": true,
+      "detail": "https://scenariolab.onrender.com"
+    },
+    {
+      "name": "Cybersecurity Crisis: Director shown as unavailable",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "Space Colony: Director shown as unavailable",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "Cyber: start shows rounds and scenario metrics",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "Cyber: 12 deterministic rounds reach Crisis Contained",
+      "ok": true,
+      "detail": "final metrics identical to local seed-42 run"
+    },
+    {
+      "name": "Cyber: authored briefings, never Live AI",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "Cyber: terminal save resumes after reload, then restart",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "Space: start shows cycles, reserves and balances",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "Space: mid-game save resumes after reload at cycle 4",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "Space: remaining cycles reach Colony Sustained",
+      "ok": true,
+      "detail": "final metrics identical to local seed-42 run"
+    },
+    {
+      "name": "Space: failure ending (Crew Breakdown) shows the report",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "Startup Classic: 12 months reach The Startup Survived",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "Startup Director: three signed turns, reload resume via replay",
+      "ok": true,
+      "detail": "3 signed records replayed; key director-prod-v1"
+    },
+    {
+      "name": "Startup Director: tampered receipt rejected, save preserved",
+      "ok": true,
+      "detail": "HTTP 422 handled; local save unchanged"
+    },
+    {
+      "name": "Startup Survival: mobile Classic and Dark layouts fit",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "Cybersecurity Crisis: mobile Classic and Dark layouts fit",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "Space Colony: mobile Classic and Dark layouts fit",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "No unexpected console errors",
+      "ok": true,
+      "detail": "1 expected 422 from the deliberate tamper test"
+    },
+    {
+      "name": "No requests to hosts other than Pages and Render",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "Briefings are fallback/authored (no live AI)",
+      "ok": true,
+      "detail": "41 briefing responses, sources: cybersecurity-crisis:fallback, space-colony:fallback, startup-survival:fallback"
+    }
+  ],
+  "directorCalls": 10,
+  "foreignHosts": [],
+  "consoleErrors": [
+    "Failed to load resource: the server responded with a status of 422 ()"
+  ]
+}

@@ -174,6 +174,52 @@ The production browser checks below used isolated Chromium 156 sessions against 
 | Paid AI generation | All observed briefing and Director proposal responses were fallback content. Chromium contacted only Pages and Render hosts. No flags or keys were changed; provider dashboards and private Render logs were not inspected. |
 
 Devpost-ready Chromium screenshots are stored in artifacts/production-smoke-2026-11-14T19-34-37-473Z/. The fallback-only deployment is ready for a public demonstration. The smoke did not inspect private Render logs or provider usage, and it did not observe an actual Render Free cold start.
+
+## Brick 9C production release (November 14, 2026)
+
+Release commit `170958b` on `main` contains Brick 9C (`f7dfd85`), the Classic console redesign (`799bf08`, merged as PR #1), and release documentation. Render runs `170958b`, deployed manually and built in 32 s. Cloudflare Pages runs the same commit, built automatically from `main`.
+
+### Deployment triggers and ordering
+
+| Platform | Observed trigger behavior |
+| --- | --- |
+| Cloudflare Pages | Automatic production deployments from `main` are enabled (build watch path `*`). Every push to `main` deploys the frontend. |
+| Render | The service setting reads **Auto-Deploy: On Commit**, but no push since `d47c68c` produced a deploy event. Every Render deploy so far was manual or environment-triggered. Treat Render as manual-deploy until the GitHub connection is repaired. |
+
+Because Pages deploys on push and Render does not, a push that changes the frontend contract goes live before the backend. This happened for Brick 9C. Pages deployed `f7dfd85` and then `88ddde4` while Render still ran `d47c68c`. For about 45 minutes the new frontend was paired with the old catalog, which had no `ai_features`. Startup Survival's Director option was hidden and the two new scenarios showed Coming Soon. Classic gameplay remained available. Deploying `170958b` to Render closed the window. **For future releases that change the API contract, deploy Render first with a manual deploy of the release commit, then let Pages build.** Repairing Render's GitHub auto-deploy, or adding a Pages build gate, is a follow-up decision. No build settings were changed during this release.
+
+### Configuration preserved
+
+Render keeps the Free plan, Dockerfile `backend/Dockerfile`, context `.`, and no build filters. Its runtime variables are `SCENARIOLAB_ENVIRONMENT`, `SCENARIOLAB_FRONTEND_ORIGIN`, `SCENARIOLAB_AI_ENABLED=false`, `SCENARIOLAB_DIRECTOR_ENABLED`, `SCENARIOLAB_DIRECTOR_LIVE_GENERATION_ENABLED=false`, `SCENARIOLAB_DIRECTOR_ACTIVE_SIGNING_KEY_ID`, and `SCENARIOLAB_DIRECTOR_SIGNING_KEYS`. No AI API key is configured. Only the two AI flags were revealed and then hidden again; signing-key values were not viewed or changed. Pages keeps root `frontend`, build `npm ci && npm run build`, output `dist`, and `VITE_API_BASE_URL=https://scenariolab.onrender.com`. Production Director signatures use key ID `director-prod-v1`. A private check found that none of the seven key values available in the repository history, the local environment file, or the test configuration verifies production signatures.
+
+### Backend verification
+
+| Check | Result |
+| --- | --- |
+| Health | `GET /api/health` returned HTTP 200 (warm, about 0.3 s). |
+| Catalog | All three scenarios are `available`. `ai_features` is `["scenario-director","live-briefings"]` for Startup Survival and `[]` for Cybersecurity Crisis and Space Colony. |
+| Definitions | `startup-survival` 1.0.0 (month, 7 metrics, 3 actions), `cybersecurity-crisis` 1.0.0 (round, 6, 7), and `space-colony` 1.0.0 (cycle, 8, 7). |
+| CORS | `Access-Control-Allow-Origin: https://scenariolab-38a.pages.dev`; a foreign origin receives no CORS header. |
+| Startup Survival regression | Seed 42 with three cost-cutting turns reproduced the local engine exactly: cash 10,500,000 cents and the Competitor Price Cut event. |
+| AI | Briefings for all three scenarios returned `fallback`; Director proposals returned `fallback`. |
+
+### Hosted browser smoke (22 of 22 checks passed)
+
+The checks used headless Chromium against `https://scenariolab-38a.pages.dev` and the real Render API, with no mocked responses. Classic runs rewrote only the start request's seed to 42, so the reference paths were reproducible; the production API resolved every start and turn. Screenshots and the JSON result log are committed in `artifacts/production-smoke-brick9c-2026-11-14/`, following the Brick 8B smoke-evidence precedent.
+
+| Area | Result |
+| --- | --- |
+| Catalog | Three scenarios showed Available and none showed Coming Soon. The browser called only `https://scenariolab.onrender.com` and never localhost. |
+| Cybersecurity Crisis | Start showed "Round 1 of 12", Threat Level 30/100, and 140 response hours. Twelve rounds reached **Crisis Contained**; the final metrics matched the local seed-42 engine run exactly. Briefings were labeled "Authored briefing". A terminal save resumed after reload with 12 history entries, and restart reset to Round 1 with an empty save. |
+| Space Colony | Start showed "Cycle 1 of 12", a 30-day oxygen reserve, and −2 days/cycle. A mid-game save resumed after reload at cycle 4. Twelve cycles reached **Colony Sustained** with metrics identical to the local run. After a restart, six rationing cycles produced the **Crew Breakdown** failure report (6 of 12 turns, Lost). |
+| Startup Survival Classic | Twelve months reached **The Startup Survived**. |
+| Startup Survival Director | Three signed fallback turns used key `director-prod-v1`, and the save resumed after reload through signed replay. A tampered receipt was rejected with HTTP 422, and the local save was unchanged. |
+| Director scoping | Cybersecurity Crisis and Space Colony showed "Not available for this scenario". No Director requests came from either scenario. |
+| Layouts and themes | All three scenarios rendered at 390×844 in Classic and Dark themes with no horizontal overflow. Desktop screenshots were captured for the home page and both new-scenario victories. |
+| Errors and network | There were no unexpected console errors; the only error was the deliberate tamper test's 422. No hosts other than Pages and Render were contacted. All 41 briefing responses were `fallback`. |
+| Cold start | The service was warm during the smoke, with health responses in about 0.2 s. No Free-instance cold start was observed; Render warns that one can delay a request by 50 s or more. |
+
+Private Render logs and provider usage dashboards were not inspected. No paid provider requests were made.
 ## Release smoke-test plan
 
 Run this against the deployed production URLs during a controlled validation window. Use a non-sensitive browser profile and retain no real secrets in DevTools exports or screenshots.

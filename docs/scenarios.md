@@ -49,6 +49,10 @@ The player commands a 50-astronaut Mars colony for 12 mission cycles.
 
 **Victory: Colony Sustained.** After cycle 12, every reserve must be ≥ 10 days, Crew Morale ≥ 35, and Colony Integrity ≥ 40. **Failures:** Life Support Failure, Food Supplies Exhausted, Total Power Loss, Habitat Collapse, Crew Breakdown, and Colony Unsustainable (the turn-limit fallback).
 
+## Production status
+
+All three scenarios are live at `https://scenariolab-38a.pages.dev` from release `170958b` (November 14, 2026). Seed-42 hosted runs of the reference paths reached Crisis Contained and Colony Sustained with final metrics identical to the local engine. Results are in `docs/deployment.md`.
+
 ## Balance evidence
 
 These figures were measured with the real engine during Brick 9C tuning. The heuristic players evaluated each decision against alternative seeds' event draws, so they had no foresight of the actual roll.

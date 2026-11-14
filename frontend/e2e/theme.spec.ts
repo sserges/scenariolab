@@ -88,6 +88,25 @@ test("keeps charts readable and captures desktop and mobile views in both themes
     });
     expect(palette.background).toBe(theme === "dark" ? "#151518" : "#f5f5f7");
     expect(palette.surface).toBe(theme === "dark" ? "#242428" : "#ffffff");
+
+    await page.getByRole("tab", { name: "Decide" }).click();
+    const actionContrast = await page.getByRole("button", { name: "Confirm Decision" }).evaluate((button) => {
+      function luminance(color: string): number {
+        const values = color.match(/[\d.]+/g)?.slice(0, 3).map(Number);
+        if (values === undefined || values.length !== 3) return 0;
+        const [r, g, b] = values.map((part) => {
+          const channel = part / 255;
+          return channel <= 0.04045 ? channel / 12.92 : ((channel + 0.055) / 1.055) ** 2.4;
+        });
+        return 0.2126 * r! + 0.7152 * g! + 0.0722 * b!;
+      }
+      const style = getComputedStyle(button);
+      const values = [luminance(style.color), luminance(style.backgroundColor)].sort((a, b) => b - a);
+      return (values[0]! + 0.05) / (values[1]! + 0.05);
+    });
+    expect(actionContrast).toBeGreaterThanOrEqual(4.5);
+    await page.getByRole("tab", { name: "Trends" }).click();
+
     await expect.poll(() =>
       page.locator('figure[aria-labelledby]').first().evaluate((element) => getComputedStyle(element).backgroundColor),
     ).toBe(theme === "dark" ? "rgb(36, 36, 40)" : "rgb(255, 255, 255)");
@@ -116,9 +135,6 @@ test("keeps charts readable and captures desktop and mobile views in both themes
       const paragraph = main.querySelector(".text-secondary")!;
       const chartPath = document.querySelector('svg[role="img"] path')!;
       const card = document.querySelector('figure[aria-labelledby]')!;
-      const action = [...document.querySelectorAll("button")].find((button) =>
-        button.textContent?.includes("Confirm Decision"),
-      )!;
       const stroke = getComputedStyle(chartPath).stroke;
       const chartSeriesColor = stroke.startsWith("var(")
         ? root.getPropertyValue("--theme-chart-series-1").trim()
@@ -128,13 +144,11 @@ test("keeps charts readable and captures desktop and mobile views in both themes
       return {
         secondary: ratio(getComputedStyle(paragraph).color, root.backgroundColor),
         chartSeries: ratio(chartSeriesColor, getComputedStyle(card).backgroundColor),
-        action: ratio(getComputedStyle(action).color, getComputedStyle(action).backgroundColor),
         semanticText: semanticTextColors.map((color) => ratio(color, root.backgroundColor)),
       };
     });
     expect(contrast.secondary).toBeGreaterThanOrEqual(4.5);
     expect(contrast.chartSeries).toBeGreaterThanOrEqual(3);
-    expect(contrast.action).toBeGreaterThanOrEqual(4.5);
     expect(contrast.semanticText.every((ratio) => ratio >= 4.5)).toBe(true);
 
     await page.setViewportSize({ width: 1440, height: 1000 });

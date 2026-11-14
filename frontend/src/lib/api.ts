@@ -78,10 +78,20 @@ export interface OutcomeConditionSummary {
   description: string;
 }
 
+export interface ActionEffect {
+  metric_id: string;
+  operator: "add" | "subtract" | "multiply" | "set" | "transfer";
+  value: number;
+  destination_metric_id?: string | null;
+  description: string;
+}
+
 export interface ScenarioAction {
   action_id: string;
   title: string;
   description: string;
+  /** Declared effects, sent by the API; shown for transparency, never applied by the browser. */
+  effects?: ActionEffect[];
 }
 
 export interface MetricChange {

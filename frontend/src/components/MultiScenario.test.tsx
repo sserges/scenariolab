@@ -124,11 +124,17 @@ test("Cybersecurity Crisis plays a round with scenario-specific labels, authored
   expect(screen.getByLabelText("Attacker Momentum: 4 /round")).toBeInTheDocument();
   expect(screen.getByLabelText("Operational Continuity: 90%")).toBeInTheDocument();
   expect(screen.getByLabelText("Response Resources: 140 hrs")).toBeInTheDocument();
+  fireEvent.click(screen.getByRole("tab", { name: "Trends" }));
   expect(screen.getByRole("heading", { name: "Resource and status visualizations" })).toBeInTheDocument();
+  fireEvent.click(screen.getByRole("tab", { name: "Decide" }));
   const decisions = screen.getByRole("group", { name: "Choose one available decision" });
   expect(within(decisions).getAllByRole("radio")).toHaveLength(6);
   expect(within(decisions).queryByRole("radio", { name: /Fail Over to Backup Site/ })).not.toBeInTheDocument();
   expect(decisions.textContent).not.toMatch(STARTUP_TERMS);
+  const isolate = screen.getByRole("radio", { name: /^Isolate Affected Systems/ }).closest("label") as HTMLElement;
+  expect(within(isolate).getByText("Attacker Momentum −3 /round")).toHaveClass("text-success");
+  expect(within(isolate).getByText("Operational Continuity −10%")).toHaveClass("text-danger");
+  expect(document.querySelector("[data-scenario-category]")).toHaveAttribute("data-scenario-category", "cybersecurity");
 
   fireEvent.click(screen.getByRole("radio", { name: /Isolate Affected Systems/ }));
   fireEvent.click(screen.getByRole("button", { name: "Confirm Decision" }));
@@ -170,8 +176,12 @@ test("Space Colony renders reserves, per-cycle balances, and distinct chart grou
   expect(screen.getByLabelText("Oxygen Reserve: 30 days")).toBeInTheDocument();
   expect(screen.getByLabelText("Oxygen Balance: -2 days/cycle")).toBeInTheDocument();
   expect(screen.getByLabelText("Energy Reserve: 34 days")).toBeInTheDocument();
+  expect(screen.getByRole("tab", { name: "Decide" })).toHaveAttribute("aria-selected", "true");
+  fireEvent.click(screen.getByRole("tab", { name: "Trends" }));
   expect(screen.getByRole("heading", { name: "Days trends" })).toBeInTheDocument();
   expect(screen.getByRole("heading", { name: "Days per cycle trends" })).toBeInTheDocument();
+  expect(screen.queryByRole("button", { name: "Confirm Decision" })).not.toBeInTheDocument();
+  fireEvent.click(screen.getByRole("tab", { name: "Decide" }));
 
   fireEvent.click(screen.getByRole("radio", { name: /Expand Hydroponics Bay/ }));
   fireEvent.click(screen.getByRole("button", { name: "Confirm Decision" }));

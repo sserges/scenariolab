@@ -99,6 +99,62 @@
   --theme-chart-series-6: #a3e635;
 }
 
+/*
+ * Scenario identity. Keyed by the catalog category (data), never by scenario ID.
+ * Business keeps the default accent so Startup Survival looks as before.
+ */
+[data-scenario-category="space"] {
+  --theme-accent: #c2410c;
+  --theme-accent-hover: #9a3412;
+  --theme-accent-text: #9a3412;
+  --theme-on-accent: #ffffff;
+}
+
+[data-scenario-category="cybersecurity"] {
+  --theme-accent: #0f766e;
+  --theme-accent-hover: #115e59;
+  --theme-accent-text: #0f766e;
+  --theme-on-accent: #ffffff;
+}
+
+[data-theme="dark"] [data-scenario-category="space"] {
+  --theme-accent: #fb923c;
+  --theme-accent-hover: #fdba74;
+  --theme-accent-text: #fdba74;
+  --theme-on-accent: #1c0d03;
+}
+
+[data-theme="dark"] [data-scenario-category="cybersecurity"] {
+  --theme-accent: #2dd4bf;
+  --theme-accent-hover: #5eead4;
+  --theme-accent-text: #5eead4;
+  --theme-on-accent: #04201c;
+}
+
+[data-scenario-category="cybersecurity"] .metric-number {
+  font-family: ui-monospace, "SFMono-Regular", "Cascadia Mono", Consolas, monospace;
+  letter-spacing: -0.02em;
+}
+
+.metric-number {
+  font-variant-numeric: tabular-nums;
+}
+
+@keyframes console-enter {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.console-enter {
+  animation: console-enter 280ms ease-out both;
+}
+
 html {
   min-width: 320px;
   background: var(--theme-background);

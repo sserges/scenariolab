@@ -19,12 +19,27 @@ The official Devpost deadline is confirmed as November 27, 2026 at 5:00 PM EST. 
 - ✅ **Brick 5 — Complete:** stateless replay-backed game APIs and a tested responsive Startup Survival browser flow are verified; planned scenarios remain unavailable.
 - ✅ **Brick 6 — Complete:** OpenAI-compatible provider configuration, stateless grounded briefings, strict output validation, deterministic fallback, independent frontend loading, cost guards, and mocked failure coverage are verified. A single credentialed live-provider smoke test passed with the configured `gpt-4.1-mini` model.
 - ✅ **Brick 7 — Complete:** Responsive scenario-driven dashboard, metadata-formatted KPI cards and accessible trend charts, authoritative decision/event history, versioned local save/resume through backend replay, terminal report, and AI briefing presentation are implemented and verified. Automated AI briefings remain mocked.
-- ✅ **Brick 8A application/security prep — Verified:** Production settings validation, bounded request bodies/provider concurrency, safe AI-off default, static hosting configuration, security findings, submission/privacy notes, and all application test suites pass. No infrastructure has been provisioned or deployed.
+- ✅ **Brick 8A application/security prep — Verified:** Production settings validation, bounded request bodies/provider concurrency, safe AI-off default, static hosting configuration, security findings, submission/privacy notes, and all application test suites pass. The Render backend was provisioned under Brick 8B; its first startup failed during runtime settings loading.
 - ⬜ **Brick 8A container build validation:** Dockerfile is prepared but not verified; the local Docker CLI cannot connect to the Docker Desktop Linux engine. Rerun image validation when the engine is available.
-- ✅ **Brick 8B release-candidate preparation — Verified:** Fallback-only production settings, stable Director key-ring requirements, Render and Cloudflare Pages dashboard values, CORS/connectivity steps, public smoke plan, and rollback procedure are documented and covered by regression checks. No cloud service was created or deployed.
-- ⬜ **Brick 8B — Public deployment:** Configure and verify hosting, HTTPS, edge rate limiting, origin protection, operational monitoring, and public browser journeys after approval.
+- ✅ **Brick 8B release-candidate preparation — Verified:** Fallback-only production settings, stable Director key-ring requirements, Render and Cloudflare Pages dashboard values, CORS/connectivity steps, public smoke plan, and rollback procedure are documented and covered by regression checks. Release checkpoint `d47c68c` is on `main`.
+- ✅ **Brick 8B — Public deployment and smoke tests — Verified November 14, 2026:** The fallback-only Pages and Render deployment passed the production browser smoke. Startup Survival completed all 12 Classic turns; save, resume, restart, signed Director replay, and invalid-signature rejection passed; desktop and mobile themes/layouts were usable. Detailed results and screenshots are recorded below. Public demo ready with live AI generation disabled.
 - ⬜ **Devpost submission:** Prepare and submit final project materials after the internal November 25 target and before the official November 27 deadline.
 - ✅ **Playwright E2E setup — Complete:** Playwright 1.64.1 and Chromium use isolated FastAPI/Vite startup on dedicated ports, protected AI-route mocking, deterministic real-engine gameplay, desktop/mobile coverage, save/resume after reload, terminal restoration/restart, and final-report journeys.
+
+### Brick 8C — Public deployment verification (November 14, 2026)
+
+| Area | Verified result |
+| --- | --- |
+| Backend and frontend | Pages loaded over HTTPS and made browser requests to the deployed Render API. Health, scenario catalog, scenario definition, and game routes returned HTTP 200. Warm health calls measured 99–292 ms; FastAPI responded with its healthy status. Render private startup logs were not inspected. |
+| Classic Simulation | Seeded production run completed 12/12 turns and reached the Victory report. Automatic save, reload/resume at turn 4, terminal resume, and restart to a fresh turn 1 all passed. |
+| Authored-fallback Director | Choices and authoritative previews advanced across six turns. Proposal and receipt signatures used HMAC-SHA256; valid replay resumed at turn 4. The run reached the authoritative Bankruptcy loss at turn 6. A tampered signed receipt was rejected with HTTP 422 invalid_director_signature; the original local save remained intact. |
+| Themes and layout | Classic and Dark themes rendered at desktop and 390×844 mobile sizes. Mobile gameplay had no horizontal overflow. |
+| Browser errors and network | No uncaught JavaScript errors or unexpected API statuses/hosts. The only console errors were from deliberately simulated HTTP 503/422 responses; the UI showed recoverable errors and preserved game state. |
+| Cold starts and outages | No real Render cold start occurred during the smoke; warm health calls completed in 99–292 ms. A controlled 8-second API delay left the loading state visible and then recovered. Simulated catalog and turn HTTP 503 responses exposed retry/error states; catalog retry succeeded and failed turn submission did not mutate the saved run. |
+| AI and cost | Briefing and Director endpoints returned deterministic/authored fallback content; no external provider host was contacted by Chromium. No production flags or keys were changed. Provider usage dashboards and private Render logs were not inspected. |
+| Screenshots | Chromium screenshots for home, Classic progress and final report, Director previews/history/report, and mobile light/dark gameplay are in artifacts/production-smoke-2026-11-14T19-34-37-473Z/. |
+
+The deployed fallback-only app is ready for a public demonstration. This verifies the user-facing deployment paths tested above; it does not verify Render private logs, provider-usage dashboards, or an actual Free-instance cold start.
 
 ## Daily milestones
 
@@ -75,7 +90,7 @@ Brick 9A, 9B-1, 9B-2A, and the mocked 9B-2B implementation are complete. Directo
 | Nov 8 (completed ahead of target) | ✅ **Brick 9B-2B:** desktop/mobile and regression verification | Production build and 19 Playwright Chromium tests pass; no real provider calls |
 | Attempted; remains unverified | ⬜ **Brick 9B-2B:** one controlled live-provider smoke test | One HTTP 200 response fell back after candidate rejection; no retries or further live requests |
 | Nov 23 | ⬜ **Brick 9B:** security and deployment-readiness review | Request-size and per-process limits remain; public live generation stays disabled pending shared edge controls, origin protection, and provider spend controls |
-| Nov 24 | ⬜ **Brick 9B:** release freeze or defer | Keep live-provider smoke and public enablement pending unless separately reviewed; Brick 8B remains an independent unchecked deployment gate |
+| Nov 24 | ⬜ **Brick 9B:** release freeze or defer | Keep live-provider smoke and public enablement pending unless separately reviewed; Brick 8B fallback-only public smoke is verified independently |
 | Nov 25 | **Internal submission:** choose the verified release candidate | Director may be included only if Brick 9B passed every gate; Brick 8B proceeds on its own schedule |
 
 ## Scope gates

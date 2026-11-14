@@ -1,6 +1,6 @@
 # Public Release Candidate Deployment Guide (Brick 8B)
 
-This guide prepares the fallback-only public release. No cloud service, paid plan, secret, commit, push, or deployment has been created by this preparation. Brick 8B remains incomplete until the real production URLs are reachable and the browser smoke plan below passes.
+This guide tracks the fallback-only public release. The release checkpoint d47c68c is deployed to Cloudflare Pages and a Render Free service. After the reported Director signing-key configuration correction, Render health returned HTTP 200. The first Pages bundle used the localhost API default; a later Pages rebuild corrected the API origin, and the production smoke on November 14, 2026 verified the integrated fallback-only app. See the dated results below. No production infrastructure or signing keys were changed during that smoke.
 
 ## Release behavior
 
@@ -29,11 +29,13 @@ Create a **Web Service** connected to the release repository and `main` branch, 
 | Docker Command | Leave blank; use the Dockerfile `CMD` |
 | Health Check Path | `/api/health` |
 | Port | Do not hard-code one. Render provides `PORT` (currently defaults to `10000`); the container binds to `0.0.0.0:$PORT` |
-| Region / instance plan | Choose to suit expected audience, cold starts, resource limits, and budget |
+| Instance plan | Render Free only (`$0` compute), as approved; do not select a paid plan |
+
+Free compute alone does not guarantee a `$0` total bill. Render says Free web services count against included bandwidth and build-pipeline usage, and excess usage may be billed depending on workspace payment and spend-limit settings. Before creating the service, verify that workspace protections prevent any overage charge. If that cannot be confirmed, stop. See Render's [Free instance limits](https://render.com/docs/free) and [pricing](https://render.com/pricing).
 
 The paths are deliberate: the Dockerfile copies `backend/pyproject.toml`, `backend/uv.lock`, `backend/README.md`, and `backend/src`. It installs production dependencies with `uv sync --locked --no-dev`, runs `scenariolab_api.main:app` with Uvicorn, and runs as an unprivileged user. It does not copy tests, local environments, or generated build output. The repository-root `.dockerignore` excludes `.env` files, virtual environments, caches, frontend dependencies/build output, and test reports. The Dockerfile's own health check calls `/api/health` on the runtime port; the endpoint does not check or call an AI provider.
 
-Local image verification is **pending**. The Docker CLI is installed, but this machine cannot connect to the Docker Desktop engine. Do not treat the image as locally validated. Render's first remote Docker build must succeed from the repository-root context, and the deployed service must pass its HTTP health check before the frontend is pointed at it. Render's current setup is described in [Docker on Render](https://render.com/docs/docker), [web services and port binding](https://render.com/docs/web-services), and [health checks](https://render.com/docs/health-checks).
+Local image verification is **pending**. The Docker CLI is installed, but this machine cannot connect to the Docker Desktop engine. Do not treat the image as locally validated. Render's first remote Docker build from the repository-root context succeeded for `d47c68c`; its initial container exited during runtime settings loading. The public health check now passes after the reported signing-key correction, but CORS/catalog and browser smoke checks remain pending. Render's current setup is described in [Docker on Render](https://render.com/docs/docker), [web services and port binding](https://render.com/docs/web-services), and [health checks](https://render.com/docs/health-checks).
 
 ### Cloudflare Pages settings
 
@@ -55,6 +57,26 @@ The current public files have no top-level `404.html` or `_redirects`; Pages' de
 - `Permissions-Policy: camera=(), microphone=(), geolocation=()`
 
 Cloudflare Pages also applies its documented default response headers. The checked-in file does not currently set a Content Security Policy or Strict Transport Security header. See [Pages SPA behavior](https://developers.cloudflare.com/pages/configuration/serving-pages/).
+
+### Deployment checkpoint (November 10, 2026)
+
+| Item | Observed result |
+| --- | --- |
+| Pages project | Created from `sserges/scenariolab`; project name `scenariolab` |
+| Production branch | `main` |
+| Root directory / build / output | `frontend` / `npm ci && npm run build` / `dist` |
+| Initial Pages deployment | Cloudflare dashboard reported **Success** |
+| Canonical HTTPS Pages origin | [`https://scenariolab-38a.pages.dev`](https://scenariolab-38a.pages.dev) |
+| Pages browser/API smoke | Not run; the origin is recorded from the Cloudflare deployment result, and no public backend is connected |
+| Render backend | Service `scenariolab` created from `sserges/scenariolab`, branch `main`, release `d47c68c`, Render Free (`$0` compute); the existing `codex` service was left untouched |
+| Render HTTPS origin | Dashboard health-check notice showed `scenariolab.onrender.com:10000/api/health`; the assigned service origin is [`https://scenariolab.onrender.com`](https://scenariolab.onrender.com), but it is not healthy yet |
+| Render cost protection | User confirmed workspace protections block charges beyond Free included usage. Service plan and dashboard footer showed `$0/month` |
+| Remote Docker build / runtime | Remote image build succeeded. First container startup exited with status 1 while loading runtime settings; `/api/health` did not pass. The raw exception was not inspected because it may include environment input |
+| Runtime settings and signing keys | Production, exact Pages origin, AI disabled, Director fallback enabled, and active key ID `director-prod-2026-11` were configured. A signing-key value is present and masked, but its validity is unverified because startup failed; do not overwrite or rotate it while diagnosing |
+| Pages browser/API smoke | Initial page load showed the shell and “Scenario catalog unavailable.” No integrated API or gameplay checks have run |
+| Integrated public release | Not verified; no healthy public API, successful CORS/browser, gameplay, restart, or provider-usage checks have run |
+
+The November 10 checkpoint above records the initial deployment state. The November 14 health check confirms the backend now starts and responds. Do not describe the full application as publicly verified until Pages is confirmed to use the actual API origin and the integrated public smoke plan passes. No provider requests were made during the November 10 checkpoint. The initial Render startup exception was not opened or copied; no signing-key value is recorded here.
 
 ## Render runtime environment
 
@@ -79,17 +101,11 @@ Render stores environment settings and secrets through the service dashboard. Se
 
 ## Stable Director signing keys
 
-Generate a cryptographically random value of at least 32 UTF-8 bytes once for this production environment. For example, generate it locally with Python's standard library:
-
-```powershell
-python -c "import secrets; print(secrets.token_urlsafe(48))"
-```
-
-Copy the output directly into a password manager or the Render runtime secret field. Do not paste it into this repository, a browser variable, a Docker build argument, a log, or a saved game. Configure both settings in Render:
+Before changing signing settings, inspect the existing production key ring in Render without revealing or copying any secret into logs. Preserve every existing key and its active ID; do not overwrite or rotate an existing ring. If the new service has no signing ring and no saved Director records depend on another key, generate one cryptographically random value of at least 32 UTF-8 bytes with a password manager's secure generator. Enter it directly into Render's runtime secret setting without displaying it, logging it, or sharing it in chat. Do not put it in this repository, a Vite variable, a Docker build argument, or a saved game. Configure both settings in Render only after confirming no existing ring must be preserved:
 
 ```text
-SCENARIOLAB_DIRECTOR_ACTIVE_SIGNING_KEY_ID=director-prod-2026-01
-SCENARIOLAB_DIRECTOR_SIGNING_KEYS={"director-prod-2026-01":"<generated-secret-value>"}
+SCENARIOLAB_DIRECTOR_ACTIVE_SIGNING_KEY_ID=director-prod-2026-11
+SCENARIOLAB_DIRECTOR_SIGNING_KEYS={"director-prod-2026-11":"<generated-secret-value>"}
 ```
 
 The angle-bracket text is explanatory only; replace it with the generated value. The JSON key ID must exactly match the active key ID. The application validates key IDs and requires each key value to contain at least 32 UTF-8 bytes. Keep the same key ring and active key ID through restarts, image rebuilds, and ordinary deployments. Do not generate a key at container startup: doing so would make saved signed histories fail verification after every restart.
@@ -115,8 +131,49 @@ After both origins are known, compare them exactly and update Render's `SCENARIO
 7. Confirm the deployed Pages URL matches the exact `SCENARIOLAB_FRONTEND_ORIGIN`. If not, update Render's CORS setting and redeploy. If the public API URL changes, update `VITE_API_BASE_URL` and rebuild Pages.
 8. Run the browser smoke plan against the real site only after the release has been explicitly approved and deployed. Inspect API health, browser console/network, sanitized service logs, and provider usage. Do not enable live AI as part of this release.
 
-No deployment has been performed as part of this preparation. The first remote Docker build and the deployed browser journeys remain pending.
+The initial Pages deployment and Render remote image build completed. The earlier frontend check below captured a pre-rebuild bundle; the later Pages build and integrated production smoke are verified in the section below.
 
+### Backend health verification (November 14, 2026)
+
+| Check | Observed result |
+| --- | --- |
+| HTTPS availability | `https://scenariolab.onrender.com/api/health` connected successfully over HTTPS |
+| Health response | HTTP 200; JSON body `{"status":"ok","service":"scenariolab-api"}` |
+| Response time | 0.34 seconds; no cold-start delay observed during this request |
+| FastAPI startup/runtime configuration | The live health route responded, confirming the API process started and loaded runtime configuration. No startup/configuration failure surfaced in this check. Render's private service logs were not inspected. |
+
+The health check above verifies backend health only. The separate frontend connection check below covers catalog and CORS responses; neither check substitutes for public browser gameplay.
+
+### Initial frontend connection verification (before Pages API-origin rebuild, November 14, 2026)
+
+| Check | Observed result |
+| --- | --- |
+| Pages origin | `https://scenariolab-38a.pages.dev` returned HTTP 200 (`text/html; charset=utf-8`) |
+| Catalog request | `GET https://scenariolab.onrender.com/api/scenarios` with `Origin: https://scenariolab-38a.pages.dev` returned HTTP 200 JSON with three scenarios |
+| CORS preflight | `OPTIONS /api/scenarios` returned HTTP 200; `Access-Control-Allow-Origin` exactly matched the Pages origin; allowed methods included `GET, POST` |
+| Deployed frontend bundle | The referenced JavaScript asset returned HTTP 200, contained no `scenariolab.onrender.com` hostname, and contained the `http://localhost:8000` default |
+| Chromium UI check | Chromium 156.0.8078.4 loaded the Pages app (title `ScenarioLab`); no uncaught page JavaScript errors occurred. It attempted `http://localhost:8000/api/health` and `/api/scenarios`, both failed with `ERR_CONNECTION_REFUSED`, and the catalog showed “Scenario catalog unavailable” |
+
+This was the initial pre-rebuild observation: the deployed bundle used the local fallback, so the Pages Production build needed VITE_API_BASE_URL=https://scenariolab.onrender.com. The browser smoke below was run after the subsequent Pages rebuild and confirms the current frontend calls Render. No production configuration was changed during the smoke.
+
+## Production smoke verification (November 14, 2026)
+
+The production browser checks below used isolated Chromium 156 sessions against the real Pages and Render services. The test forced seed 42 through the isolated browser request so the Classic win path was deterministic; the backend still resolved all starts and turns.
+
+| Check | Observed result |
+| --- | --- |
+| Frontend/API connection | Pages returned HTTP 200; Chromium called https://scenariolab.onrender.com for health, catalog, scenario definition, Classic, briefing, and Director routes. Normal requests returned HTTP 200. |
+| Health and startup | HTTPS /api/health returned HTTP 200 with {"status":"ok","service":"scenariolab-api"}. FastAPI was serving requests; no runtime configuration error surfaced. Private Render logs were not inspected. |
+| Classic 12-turn completion | The authoritative game completed turns 1–12 and returned Victory. The ending report showed server-returned metrics, decision history, and trend charts. |
+| Classic persistence | The local v1 save resumed after reload at turn 4 by replaying the saved start and three turns. A terminal save restored the Victory report. Restart returned HTTP 200 and reset the local action history. |
+| Director fallback and signatures | Director proposals used authored fallback content and provided previews. Six decisions returned signed HMAC-SHA256 receipts; valid replay resumed the saved turn 4 proposal. The seeded choices reached Bankruptcy on turn 6 and the terminal report displayed that server outcome. |
+| Signature validation | A test-only modified receipt signature was rejected by the real replay endpoint with HTTP 422 invalid_director_signature. The valid saved data remained unchanged and resumed successfully once the request mutation was removed. |
+| Themes and responsive layout | Classic and Dark themes rendered on desktop. Classic gameplay worked at a 390×844 mobile viewport in both themes with no horizontal overflow. |
+| Browser/network errors | No uncaught JavaScript errors or unexpected network hosts/statuses. One expected console resource error corresponded to the deliberately tampered replay's HTTP 422. Separate simulated 503 checks also produced expected resource errors and recoverable UI states. |
+| Free-instance cold start and temporary outages | No real cold start was observed; repeated warm health calls were 99–292 ms. An 8-second delayed catalog response remained in a loading state and then recovered. A simulated catalog 503 displayed its retry state and recovered on retry. A simulated turn 503 preserved state and allowed a successful retry. |
+| Paid AI generation | All observed briefing and Director proposal responses were fallback content. Chromium contacted only Pages and Render hosts. No flags or keys were changed; provider dashboards and private Render logs were not inspected. |
+
+Devpost-ready Chromium screenshots are stored in artifacts/production-smoke-2026-11-14T19-34-37-473Z/. The fallback-only deployment is ready for a public demonstration. The smoke did not inspect private Render logs or provider usage, and it did not observe an actual Render Free cold start.
 ## Release smoke-test plan
 
 Run this against the deployed production URLs during a controlled validation window. Use a non-sensitive browser profile and retain no real secrets in DevTools exports or screenshots.
